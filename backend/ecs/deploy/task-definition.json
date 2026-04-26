@@ -1,0 +1,53 @@
+{
+  "comment": "ECS Fargate task definition template for the Music Subscription backend. Replace <ACCOUNT_ID> and <ECR_IMAGE_URI> before registering. setup.sh does this automatically.",
+
+  "family": "music-backend-ecs",
+
+  "taskRoleArn":      "arn:aws:iam::<ACCOUNT_ID>:role/LabRole",
+  "executionRoleArn": "arn:aws:iam::<ACCOUNT_ID>:role/LabRole",
+
+  "networkMode":             "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+
+  "cpu":    "256",
+  "memory": "512",
+
+  "containerDefinitions": [
+    {
+      "name":  "music-backend",
+      "image": "<ECR_IMAGE_URI>",
+
+      "essential": true,
+
+      "portMappings": [
+        {
+          "containerPort": 80,
+          "protocol":      "tcp"
+        }
+      ],
+
+      "environment": [
+        { "name": "AWS_DEFAULT_REGION", "value": "us-east-1"                      },
+        { "name": "S3_BUCKET",          "value": "teststage2026"                  },
+        { "name": "FLASK_DEBUG",        "value": "false"                           }
+      ],
+
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group":         "/ecs/music-backend",
+          "awslogs-region":        "us-east-1",
+          "awslogs-stream-prefix": "ecs"
+        }
+      },
+
+      "healthCheck": {
+        "command":     ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:80/health')\" || exit 1"],
+        "interval":    30,
+        "timeout":     5,
+        "retries":     3,
+        "startPeriod": 15
+      }
+    }
+  ]
+}

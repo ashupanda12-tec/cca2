@@ -1,0 +1,5 @@
+# Lambda runtime (Python 3.11) already includes boto3 and botocore.
+# Listed here so `sam build` packages the correct versions and so local
+# development environments (pip install -r requirements.txt) work identically.
+boto3>=1.34.0
+botocore>=1.34.0

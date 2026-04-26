@@ -1,0 +1,46 @@
+# docker-compose.yml — Local testing for the ECS backend
+#
+# This runs the same Docker image that gets deployed to ECS Fargate, but
+# mounts your local ~/.aws credentials so the container can reach the real
+# DynamoDB tables and S3 bucket in your AWS Academy account.
+#
+# Usage:
+#   1. Make sure Docker Desktop is running
+#   2. Update S3_BUCKET below to match your bucket name (or export it as an env var)
+#   3. Refresh your AWS Academy credentials in ~/.aws/credentials
+#   4. From this directory:  docker compose up --build
+#   5. Test at http://localhost:80  (or just http://localhost)
+#   6. Stop:  docker compose down
+
+services:
+  backend:
+    build: .
+    ports:
+      - "80:80"
+    environment:
+      # ── AWS ──────────────────────────────────────────────────────────────────
+      AWS_DEFAULT_REGION: us-east-1
+
+      # ── Update this to your S3 bucket name ───────────────────────────────────
+      # Alternatively, export S3_BUCKET in your shell and docker compose
+      # will pick it up automatically via the ${S3_BUCKET} interpolation below.
+      S3_BUCKET: ${S3_BUCKET:-teststage2026}
+
+      # ── Flask ─────────────────────────────────────────────────────────────────
+      FLASK_DEBUG: "false"
+      SECRET_KEY: "local-dev-secret"
+
+    volumes:
+      # Mount your local AWS credentials read-only into the container.
+      # This is only used for local testing — on ECS the LabRole task role
+      # supplies credentials automatically without any volume mount.
+      - ~/.aws:/root/.aws:ro
+
+    # Simple health check — mirrors what ECS uses in the task definition
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request; urllib.request.urlopen('http://localhost:80/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
