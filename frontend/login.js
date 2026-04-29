@@ -1,48 +1,31 @@
-// frontend/login.js
-document.getElementById('login-form').addEventListener('submit', async function(event) {
-    event.preventDefault(); 
+document.getElementById('login-form').addEventListener('submit', async function(e) {
+    e.preventDefault();
 
-    let email = document.getElementById('email').value;
-    let password = document.getElementById('password').value;
-    let errorMsg = document.getElementById('message');
+    const email    = document.getElementById('email').value;
+    const password = document.getElementById('password').value;
+    const msgEl    = document.getElementById('message');
+
+    // Reset
+    msgEl.style.display = 'none';
 
     try {
-        let loginUrl = API_BASE_URL + '/auth/login';
-        
-        let response = await fetch(loginUrl, {
+        const res = await fetch(API_BASE_URL + '/auth/login', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ 
-                "email": email, 
-                "password": password 
-            })
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password })
         });
 
-        if (response.ok == true) {
+        if (res.ok) {
             sessionStorage.setItem('userEmail', email);
-            window.location.href = 'index.html'; 
+            window.location.href = 'index.html';
         } else {
-            // Use backend error
-            let errorData = await response.json();
-            
-            if (errorData.error) {
-                errorMsg.textContent = errorData.error;
-            } else {
-                errorMsg.textContent = "email or password is invalid";
-            }
-            
-            // Add red styling so it looks like an error
-            errorMsg.style.color = "#d93025";
-            errorMsg.style.backgroundColor = "#fce8e6";
-            errorMsg.style.display = 'block';
+            const data = await res.json();
+            msgEl.textContent = data.error || 'email or password is invalid';
+            msgEl.style.display = 'block';
         }
-    } catch (error) {
-        console.log('Error connecting to the API:', error);
-        errorMsg.textContent = "Could not connect to the server.";
-        errorMsg.style.color = "#d93025";
-        errorMsg.style.backgroundColor = "#fce8e6";
-        errorMsg.style.display = 'block';
+    } catch (err) {
+        msgEl.textContent = 'Could not connect to the server.';
+        msgEl.style.display = 'block';
+        console.error(err);
     }
 });

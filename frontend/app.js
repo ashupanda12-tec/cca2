@@ -1,206 +1,238 @@
-// 1. On page load, verify login
+// app.js — Sonata frontend logic
+
+// ── Utility ─────────────────────────────────────────────────────────────────
+function escapeApostrophe(text) {
+    return (text || '').split("'").join("\\'");
+}
+
+function pickImage(song) {
+    return song.presigned_url || song.image_url || '';
+}
+
+// ── Make a song card element ─────────────────────────────────────────────────
+function makeSongCard(song, actionType) {
+    const card = document.createElement('div');
+    card.className = 'song-card';
+
+    const imgSrc = pickImage(song);
+    const safeTitle  = escapeApostrophe(song.title);
+    const safeArtist = escapeApostrophe(song.artist);
+    const safeAlbum  = escapeApostrophe(song.album || '');
+
+    const imgTag = imgSrc
+        ? `<img class="card-img" src="${imgSrc}" alt="${song.artist}" onerror="this.style.display='none'">`
+        : `<div class="card-img placeholder">♪</div>`;
+
+    const btnClass  = actionType === 'subscribe' ? 'subscribe' : 'remove';
+    const btnLabel  = actionType === 'subscribe' ? '+ Subscribe' : '✕ Remove';
+    const btnAction = actionType === 'subscribe'
+        ? `addSubscription('${safeTitle}','${safeArtist}','${song.year}','${safeAlbum}','${song.image_url || ''}')`
+        : `removeSubscription('${safeTitle}','${safeArtist}','${song.year}')`;
+
+    card.innerHTML = `
+        ${imgTag}
+        <div class="card-body">
+            <div class="card-title">${song.title}</div>
+            <div class="card-artist">${song.artist}</div>
+            <div class="card-meta">${song.year}${song.album ? ' · ' + song.album : ''}</div>
+            <button class="card-btn ${btnClass}" onclick="${btnAction}">${btnLabel}</button>
+        </div>
+    `;
+    return card;
+}
+
+// ── Skeleton placeholders while loading ──────────────────────────────────────
+function showSkeletons(container, count = 4) {
+    container.innerHTML = '';
+    for (let i = 0; i < count; i++) {
+        container.innerHTML += `
+            <div class="skeleton">
+                <div class="skeleton-img"></div>
+                <div class="skeleton-body">
+                    <div class="skeleton-line"></div>
+                    <div class="skeleton-line short"></div>
+                </div>
+            </div>`;
+    }
+}
+
+// ── Show status message ───────────────────────────────────────────────────────
+function showStatus(el, text, type = 'info') {
+    el.textContent = text;
+    el.className = `status-msg ${type}`;
+    el.style.display = 'block';
+}
+
+function hideStatus(el) {
+    el.style.display = 'none';
+}
+
+// ── On load ──────────────────────────────────────────────────────────────────
 window.onload = function() {
-    let userEmail = sessionStorage.getItem('userEmail');
-    
-    // Security check
-    if (userEmail == null || userEmail == "") {
-        window.location.href = 'login.html'; 
-        return;
+    const email = sessionStorage.getItem('userEmail');
+    if (!email) { window.location.href = 'login.html'; return; }
+
+    // Show username derived from email
+    const usernameEl = document.getElementById('display-username');
+    if (usernameEl) usernameEl.textContent = email.split('@')[0];
+
+    // Logout handler
+    const logoutBtn = document.getElementById('logout-btn');
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', async function() {
+            try {
+                await fetch(API_BASE_URL + '/auth/logout', { method: 'POST' });
+            } catch (_) {}
+            sessionStorage.removeItem('userEmail');
+            window.location.href = 'login.html';
+        });
     }
 
-    // Split the email at the '@' symbol, and grab the first part (index 0)
-    let username = userEmail.split('@')[0];
-    document.getElementById('display-email').textContent = username;
-    loadSubscriptions(userEmail);
+    loadSubscriptions(email);
 };
 
-// Helper function to fix the apostrophe bug for songs like "Don't Stop Believin'"
-function escapeApostrophe(text) {
-    return text.split("'").join("\\'"); 
-}
-
-// 2. Load Subscriptions
+// ── Load subscriptions ───────────────────────────────────────────────────────
 async function loadSubscriptions(email) {
-    let listDiv = document.getElementById('subscription-list');
-    listDiv.innerHTML = 'Loading...';
+    const listEl    = document.getElementById('subscription-list');
+    const msgEl     = document.getElementById('sub-message');
+    const countEl   = document.getElementById('sub-count');
+
+    showSkeletons(listEl, 4);
+    hideStatus(msgEl);
 
     try {
-        // Add a timestamp to stop the browser from keeping old data
-        let timestamp = new Date().getTime();
-        let url = API_BASE_URL + '/subscriptions?email=' + email + '&t=' + timestamp;
-        
-        let response = await fetch(url);
-        let data = await response.json();
+        const ts  = Date.now();
+        const res = await fetch(`${API_BASE_URL}/subscriptions?email=${encodeURIComponent(email)}&t=${ts}`);
+        const data = await res.json();
 
-        // Check if list is empty
-        if (data.subscriptions == null || data.subscriptions.length == 0) {
-            listDiv.innerHTML = '<p>No subscriptions found.</p>';
+        listEl.innerHTML = '';
+
+        if (!data.subscriptions || data.subscriptions.length === 0) {
+            if (countEl) countEl.textContent = '';
+            listEl.innerHTML = `
+                <div class="empty-state" style="grid-column: 1/-1;">
+                    <div class="empty-icon">♫</div>
+                    <h3>Your library is empty</h3>
+                    <p>Search for songs above and subscribe to build your collection.</p>
+                </div>`;
             return;
         }
 
-        listDiv.innerHTML = ''; 
-        
-        // Loop through each song using a standard loop
-        for (let i = 0; i < data.subscriptions.length; i++) {
-            let song = data.subscriptions[i];
-            let card = document.createElement('div');
-            card.className = 'song-card';
-            
-            // Pick the S3 image if we have it, otherwise use the normal one
-            let imgSource = song.image_url;
-            if (song.presigned_url) {
-                imgSource = song.presigned_url;
-            }
-
-            // Make the text safe for the button click
-            let safeTitle = escapeApostrophe(song.title);
-            let safeArtist = escapeApostrophe(song.artist);
-
-            card.innerHTML = `
-                <img src="${imgSource}" alt="${song.artist}">
-                <div>
-                    <strong>${song.title}</strong><br>
-                    ${song.artist} (${song.year}) - ${song.album}<br>
-                    <button onclick="removeSubscription('${safeTitle}', '${safeArtist}', '${song.year}')">Remove</button>
-                </div>
-            `;
-            listDiv.appendChild(card);
-        }
-    } catch (error) {
-        listDiv.innerHTML = '<p style="color:red;">Error loading subscriptions.</p>';
-        console.log("Error:", error);
-    }
-}
-
-// 3. Remove Subscription
-async function removeSubscription(title, artist, year) {
-    let email = sessionStorage.getItem('userEmail');
-    
-    try {
-        let response = await fetch(API_BASE_URL + '/subscriptions', {
-            method: 'DELETE',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-                "email": email, 
-                "title": title, 
-                "artist": artist, 
-                "year": year 
-            })
+        if (countEl) countEl.textContent = `${data.subscriptions.length} track${data.subscriptions.length !== 1 ? 's' : ''}`;
+        data.subscriptions.forEach(song => {
+            listEl.appendChild(makeSongCard(song, 'remove'));
         });
 
-        if (response.ok == true) {
-            loadSubscriptions(email); 
-        } else {
-            alert("Failed to remove subscription.");
-        }
-    } catch (error) {
-        console.log("Error:", error);
+    } catch (err) {
+        listEl.innerHTML = '';
+        showStatus(msgEl, 'Failed to load your library. Please refresh.', 'error');
+        console.error(err);
     }
 }
 
-// 4. Search Query
-document.getElementById('query-form').addEventListener('submit', async function(event) {
-    event.preventDefault();
+// ── Remove subscription ───────────────────────────────────────────────────────
+window.removeSubscription = async function(title, artist, year) {
+    const email = sessionStorage.getItem('userEmail');
+    try {
+        const res = await fetch(API_BASE_URL + '/subscriptions', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, title, artist, year })
+        });
+        if (res.ok) {
+            loadSubscriptions(email);
+        } else {
+            alert('Failed to remove subscription.');
+        }
+    } catch (err) {
+        console.error(err);
+    }
+};
 
-    let msgDiv = document.getElementById('query-message');
-    let resultsDiv = document.getElementById('query-results');
-    
-    msgDiv.textContent = '';
-    resultsDiv.innerHTML = 'Searching...';
+// ── Search ───────────────────────────────────────────────────────────────────
+document.getElementById('query-form').addEventListener('submit', async function(e) {
+    e.preventDefault();
 
-    let title = document.getElementById('q-title').value.trim();
-    let artist = document.getElementById('q-artist').value.trim();
-    let year = document.getElementById('q-year').value.trim();
-    let album = document.getElementById('q-album').value.trim();
+    const title  = document.getElementById('q-title').value.trim();
+    const artist = document.getElementById('q-artist').value.trim();
+    const year   = document.getElementById('q-year').value.trim();
+    const album  = document.getElementById('q-album').value.trim();
 
-    // Check if they left everything blank
-    if (title == "" && artist == "" && year == "" && album == "") {
-        resultsDiv.innerHTML = '';
-        msgDiv.textContent = "Please fill in at least one field to search.";
+    const resultsSection = document.getElementById('results-section');
+    const resultsEl      = document.getElementById('query-results');
+    const msgEl          = document.getElementById('query-message');
+    const countEl        = document.getElementById('results-count');
+
+    if (!title && !artist && !year && !album) {
+        resultsSection.style.display = 'block';
+        resultsEl.innerHTML = '';
+        showStatus(msgEl, 'Please fill in at least one field to search.', 'info');
+        countEl.textContent = '';
         return;
     }
 
-    // Build the query parameters
-    let params = new URLSearchParams();
-    if (title != "") params.append('title', title);
-    if (artist != "") params.append('artist', artist);
-    if (year != "") params.append('year', year);
-    if (album != "") params.append('album', album);
+    resultsSection.style.display = 'block';
+    hideStatus(msgEl);
+    showSkeletons(resultsEl, 4);
+    countEl.textContent = 'Searching…';
 
-    let searchUrl = API_BASE_URL + '/music/query?' + params.toString();
+    // Scroll to results
+    setTimeout(() => resultsSection.scrollIntoView({ behavior: 'smooth' }), 80);
+
+    const params = new URLSearchParams();
+    if (title)  params.append('title',  title);
+    if (artist) params.append('artist', artist);
+    if (year)   params.append('year',   year);
+    if (album)  params.append('album',  album);
 
     try {
-        let response = await fetch(searchUrl);
-        let data = await response.json();
+        const res  = await fetch(`${API_BASE_URL}/music/query?${params}`);
+        const data = await res.json();
 
-        if (data.message && data.message.includes("No result is retrieved")) {
-            resultsDiv.innerHTML = '';
-            msgDiv.textContent = "No result is retrieved. Please query again";
+        resultsEl.innerHTML = '';
+
+        if (!data.results || data.results.length === 0 ||
+            (data.message && data.message.includes('No result'))) {
+            countEl.textContent = '0 results';
+            showStatus(msgEl, 'No result is retrieved. Please query again', 'info');
             return;
         }
 
-        resultsDiv.innerHTML = ''; 
+        countEl.textContent = `${data.results.length} result${data.results.length !== 1 ? 's' : ''}`;
+        data.results.forEach((song, i) => {
+            const card = makeSongCard(song, 'subscribe');
+            card.style.animationDelay = (i * 0.04) + 's';
+            resultsEl.appendChild(card);
+        });
 
-        if (data.results && data.results.length > 0) {
-            for (let i = 0; i < data.results.length; i++) {
-                let song = data.results[i];
-                let card = document.createElement('div');
-                card.className = 'song-card';
-                
-                let imgSource = song.image_url;
-                if (song.presigned_url) {
-                    imgSource = song.presigned_url;
-                }
-
-                let safeTitle = escapeApostrophe(song.title);
-                let safeArtist = escapeApostrophe(song.artist);
-                let safeAlbum = escapeApostrophe(song.album);
-
-                card.innerHTML = `
-                    <img src="${imgSource}" alt="${song.artist}">
-                    <div>
-                        <strong>${song.title}</strong>
-                        <span>${song.artist} (${song.year}) - ${song.album}</span>
-                        <button onclick="addSubscription('${safeTitle}', '${safeArtist}', '${song.year}', '${safeAlbum}', '${song.image_url}')">Subscribe</button>
-                    </div>
-                `;
-                resultsDiv.appendChild(card);
-            }
-        }
-
-    } catch (error) {
-        resultsDiv.innerHTML = '';
-        msgDiv.textContent = "Error connecting to the search service.";
-        console.log("Error:", error);
+    } catch (err) {
+        resultsEl.innerHTML = '';
+        showStatus(msgEl, 'Error connecting to the search service.', 'error');
+        countEl.textContent = '';
+        console.error(err);
     }
 });
 
-// 5. Add Subscription
+// ── Add subscription ─────────────────────────────────────────────────────────
 window.addSubscription = async function(title, artist, year, album, image_url) {
-    let email = sessionStorage.getItem('userEmail');
-    
+    const email = sessionStorage.getItem('userEmail');
     try {
-        let response = await fetch(API_BASE_URL + '/subscriptions', {
+        const res = await fetch(API_BASE_URL + '/subscriptions', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-                "email": email, 
-                "title": title, 
-                "artist": artist, 
-                "year": year, 
-                "album": album, 
-                "image_url": image_url 
-            })
+            body: JSON.stringify({ email, title, artist, year, album, image_url })
         });
 
-        if (response.status == 201) {
-            loadSubscriptions(email); 
+        if (res.status === 201) {
+            loadSubscriptions(email);
+            // Briefly highlight library section
+            document.getElementById('library-section').scrollIntoView({ behavior: 'smooth' });
         } else {
-            let data = await response.json();
-            alert("Failed to subscribe: " + data.error);
+            const data = await res.json();
+            alert('Failed to subscribe: ' + (data.error || 'Unknown error'));
         }
-    } catch (error) {
-         alert("Error subscribing to song.");
-         console.log("Error:", error);
+    } catch (err) {
+        alert('Error subscribing to song.');
+        console.error(err);
     }
 };

@@ -3,118 +3,320 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Music Subscription - Register</title>
+    <title>Sonata — Create Account</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
     <style>
-        /* Uber-style CSS */
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --bg:       #0a0a0a;
+            --surface:  #141414;
+            --border:   #2a2a2a;
+            --gold:     #c9933a;
+            --gold-dim: #7a5520;
+            --text:     #e8e4dc;
+            --muted:    #6b6560;
+            --error:    #c0392b;
+            --success:  #27ae60;
+        }
+
         body {
-            margin: 0;
-            padding: 0;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            background-color: #ffffff;
-            color: #000000;
+            min-height: 100vh;
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'DM Sans', sans-serif;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
         }
-        
-        .navbar {
-            background-color: #000000;
-            color: #ffffff;
-            padding: 20px 40px;
-            font-size: 24px;
-            font-weight: 500;
+
+        .panel-left {
+            position: relative;
+            overflow: hidden;
+            background: #0f0c08;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 48px;
+        }
+
+        .panel-left::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background:
+                radial-gradient(ellipse 60% 60% at 20% 40%, rgba(201, 147, 58, 0.10) 0%, transparent 70%),
+                radial-gradient(ellipse 50% 50% at 85% 75%, rgba(201, 147, 58, 0.07) 0%, transparent 60%);
+        }
+
+        /* Waveform decoration */
+        .waveform {
+            position: absolute;
+            left: 40px;
+            right: 40px;
+            top: 50%;
+            transform: translateY(-50%);
+            height: 120px;
+            display: flex;
+            align-items: center;
+            gap: 3px;
+            opacity: 0.25;
+        }
+
+        .wave-bar {
+            flex: 1;
+            background: var(--gold);
+            border-radius: 2px;
+            animation: wavePulse 1.5s ease-in-out infinite;
+        }
+
+        @keyframes wavePulse {
+            0%, 100% { transform: scaleY(0.3); }
+            50% { transform: scaleY(1); }
+        }
+
+        .brand {
+            position: relative;
+            z-index: 1;
+        }
+
+        .brand-name {
+            font-family: 'Playfair Display', serif;
+            font-size: 28px;
+            font-weight: 700;
             letter-spacing: -0.5px;
+            color: var(--gold);
         }
 
-        .container {
-            max-width: 360px;
-            margin: 80px auto 40px;
-            padding: 0 20px;
+        .brand-tagline {
+            font-size: 12px;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            color: var(--muted);
+            margin-top: 4px;
         }
 
-        h2 {
-            font-size: 24px;
-            font-weight: 500;
-            margin-bottom: 30px;
+        .panel-left-footer {
+            position: relative;
+            z-index: 1;
+        }
+
+        .perks {
+            list-style: none;
+        }
+
+        .perks li {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 0;
+            font-size: 13px;
+            color: var(--muted);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .perks li:last-child { border-bottom: none; }
+
+        .perks li::before {
+            content: '♪';
+            color: var(--gold);
+            font-size: 14px;
+            flex-shrink: 0;
+        }
+
+        .panel-right {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            padding: 80px 72px;
+            background: var(--surface);
+        }
+
+        .form-header {
+            margin-bottom: 40px;
+        }
+
+        .form-header h1 {
+            font-family: 'Playfair Display', serif;
+            font-size: 38px;
+            font-weight: 400;
+            line-height: 1.15;
+            margin-bottom: 12px;
+        }
+
+        .form-header p {
+            font-size: 14px;
+            color: var(--muted);
+            font-weight: 300;
+        }
+
+        .form-group {
+            margin-bottom: 18px;
+        }
+
+        label {
+            display: block;
+            font-size: 11px;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: var(--muted);
+            margin-bottom: 8px;
         }
 
         input {
             width: 100%;
-            padding: 14px 16px;
-            margin-bottom: 16px;
-            border: 2px solid transparent;
-            background-color: #f3f3f3;
-            border-radius: 8px;
-            font-size: 16px;
-            box-sizing: border-box;
-            transition: all 0.2s ease;
-        }
-
-        input:focus {
+            padding: 14px 18px;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            color: var(--text);
+            font-family: 'DM Sans', sans-serif;
+            font-size: 15px;
+            font-weight: 300;
+            transition: border-color 0.2s;
             outline: none;
-            border-color: #000000;
-            background-color: #ffffff;
         }
 
-        button {
+        input:focus { border-color: var(--gold); }
+        input::placeholder { color: var(--muted); }
+
+        .message-box {
+            display: none;
+            padding: 12px 16px;
+            border-radius: 4px;
+            font-size: 13px;
+            margin-bottom: 18px;
+        }
+
+        .message-box.error {
+            background: rgba(192, 57, 43, 0.1);
+            border: 1px solid rgba(192, 57, 43, 0.3);
+            color: #e74c3c;
+        }
+
+        .message-box.success {
+            background: rgba(39, 174, 96, 0.1);
+            border: 1px solid rgba(39, 174, 96, 0.3);
+            color: #2ecc71;
+        }
+
+        .btn-primary {
             width: 100%;
-            padding: 16px;
-            background-color: #000000;
-            color: #ffffff;
+            padding: 15px;
+            background: var(--gold);
+            color: #0a0a0a;
             border: none;
-            border-radius: 8px;
-            font-size: 16px;
+            border-radius: 4px;
+            font-family: 'DM Sans', sans-serif;
+            font-size: 14px;
             font-weight: 500;
+            letter-spacing: 1px;
+            text-transform: uppercase;
             cursor: pointer;
-            margin-top: 10px;
-            margin-bottom: 20px;
-            transition: background-color 0.2s;
+            margin-top: 8px;
+            transition: background 0.2s, transform 0.1s;
         }
 
-        button:hover {
-            background-color: #333333;
+        .btn-primary:hover { background: #dba843; }
+        .btn-primary:active { transform: scale(0.99); }
+
+        .divider {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin: 24px 0;
         }
 
-        .login-link {
+        .divider::before, .divider::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: var(--border);
+        }
+
+        .divider span { font-size: 12px; color: var(--muted); }
+
+        .link-row {
             text-align: center;
-            font-size: 14px;
+            font-size: 13px;
+            color: var(--muted);
         }
 
-        .login-link a {
-            color: #000000;
+        .link-row a {
+            color: var(--gold);
+            text-decoration: none;
             font-weight: 500;
-            text-decoration: underline;
         }
 
-        #message {
-            font-size: 14px;
-            margin-bottom: 15px;
-            padding: 10px;
-            border-radius: 8px;
-            text-align: center;
-            font-weight: 500;
+        .link-row a:hover { text-decoration: underline; }
+
+        @media (max-width: 768px) {
+            body { grid-template-columns: 1fr; }
+            .panel-left { display: none; }
+            .panel-right { padding: 48px 32px; }
         }
     </style>
 </head>
 <body>
-    
-    <div class="navbar">MusicApp</div>
-    
-    <div class="container">
-        <h2>Create your account</h2>
-        
-        <div id="message" style="display: none;"></div>
-        
-        <form id="register-form">
-            <input type="email" id="email" placeholder="Enter email" required>
-            <input type="text" id="username" placeholder="Enter username" required>
-            <input type="password" id="password" placeholder="Enter password" required>
-            
-            <button type="submit">Continue</button>
-        </form>
-        
-        <div class="login-link">
-            Already have an account? <a href="login.html">Login</a>
+
+    <div class="panel-left">
+        <div class="waveform" id="waveform"></div>
+        <div class="brand">
+            <div class="brand-name">Sonata</div>
+            <div class="brand-tagline">Music Subscription</div>
+        </div>
+        <div class="panel-left-footer">
+            <ul class="perks">
+                <li>Search across 137+ songs and growing</li>
+                <li>Build your personal subscription library</li>
+                <li>Discover music by artist, album, or year</li>
+            </ul>
         </div>
     </div>
 
+    <div class="panel-right">
+        <div class="form-header">
+            <h1>Join<br><em>Sonata.</em></h1>
+            <p>Create your account and start discovering music.</p>
+        </div>
+
+        <div id="message" class="message-box"></div>
+
+        <form id="register-form">
+            <div class="form-group">
+                <label for="email">Email Address</label>
+                <input type="email" id="email" placeholder="you@example.com" required>
+            </div>
+            <div class="form-group">
+                <label for="username">Display Name</label>
+                <input type="text" id="username" placeholder="How should we call you?" required>
+            </div>
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" placeholder="••••••••" required>
+            </div>
+            <button type="submit" class="btn-primary">Create Account</button>
+        </form>
+
+        <div class="divider"><span>or</span></div>
+
+        <div class="link-row">
+            Already have an account? <a href="login.html">Sign in</a>
+        </div>
+    </div>
+
+    <script>
+        // Generate animated waveform bars
+        const wf = document.getElementById('waveform');
+        const heights = [20,40,70,55,90,65,45,80,35,60,100,50,75,30,85,45,65,90,55,40,70,25,60,80,45];
+        heights.forEach((h, i) => {
+            const bar = document.createElement('div');
+            bar.className = 'wave-bar';
+            bar.style.height = h + '%';
+            bar.style.animationDelay = (i * 0.06) + 's';
+            wf.appendChild(bar);
+        });
+    </script>
     <script src="config.js"></script>
     <script src="register.js"></script>
 </body>

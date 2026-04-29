@@ -3,120 +3,296 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Music Subscription - Login</title>
+    <title>Sonata — Sign In</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
     <style>
-        /* Uber-style CSS */
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --bg:       #0a0a0a;
+            --surface:  #141414;
+            --border:   #2a2a2a;
+            --gold:     #c9933a;
+            --gold-dim: #7a5520;
+            --text:     #e8e4dc;
+            --muted:    #6b6560;
+            --error:    #c0392b;
+        }
+
         body {
-            margin: 0;
-            padding: 0;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            background-color: #ffffff;
-            color: #000000;
+            min-height: 100vh;
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'DM Sans', sans-serif;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
         }
-        
-        /* Top Black Navbar */
-        .navbar {
-            background-color: #000000;
-            color: #ffffff;
-            padding: 20px 40px;
-            font-size: 24px;
-            font-weight: 500;
+
+        /* ── Left Panel ── */
+        .panel-left {
+            position: relative;
+            overflow: hidden;
+            background: #0f0c08;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 48px;
+        }
+
+        .panel-left::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background:
+                radial-gradient(ellipse 70% 50% at 30% 60%, rgba(201, 147, 58, 0.12) 0%, transparent 70%),
+                radial-gradient(ellipse 40% 40% at 80% 20%, rgba(201, 147, 58, 0.06) 0%, transparent 60%);
+        }
+
+        .vinyl {
+            position: absolute;
+            right: -80px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 420px;
+            height: 420px;
+            border-radius: 50%;
+            background: conic-gradient(
+                from 0deg,
+                #1a1a1a 0deg, #111 8deg, #1a1a1a 16deg,
+                #111 24deg, #1a1a1a 32deg, #111 40deg
+            );
+            box-shadow:
+                0 0 0 2px #2a2a2a,
+                0 0 60px rgba(0,0,0,0.8),
+                inset 0 0 80px rgba(0,0,0,0.5);
+            animation: spin 20s linear infinite;
+            opacity: 0.6;
+        }
+
+        .vinyl::after {
+            content: '';
+            position: absolute;
+            inset: 38%;
+            border-radius: 50%;
+            background: radial-gradient(circle, #c9933a 0%, #7a5520 40%, #2a1a08 100%);
+            box-shadow: 0 0 20px rgba(201, 147, 58, 0.3);
+        }
+
+        @keyframes spin { to { transform: translateY(-50%) rotate(360deg); } }
+
+        .brand {
+            position: relative;
+            z-index: 1;
+        }
+
+        .brand-name {
+            font-family: 'Playfair Display', serif;
+            font-size: 28px;
+            font-weight: 700;
             letter-spacing: -0.5px;
+            color: var(--gold);
         }
 
-        /* Center Container */
-        .container {
-            max-width: 360px;
-            margin: 80px auto 40px;
-            padding: 0 20px;
+        .brand-tagline {
+            font-size: 12px;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            color: var(--muted);
+            margin-top: 4px;
         }
 
-        h2 {
-            font-size: 24px;
-            font-weight: 500;
-            margin-bottom: 30px;
+        .panel-left-footer {
+            position: relative;
+            z-index: 1;
         }
 
-        /* Gray Inputs*/
+        .panel-left-footer blockquote {
+            font-family: 'Playfair Display', serif;
+            font-style: italic;
+            font-size: 22px;
+            line-height: 1.4;
+            color: var(--text);
+            opacity: 0.7;
+            max-width: 280px;
+        }
+
+        .panel-left-footer cite {
+            display: block;
+            margin-top: 12px;
+            font-size: 11px;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: var(--gold-dim);
+            font-style: normal;
+        }
+
+        /* ── Right Panel ── */
+        .panel-right {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            padding: 80px 72px;
+            background: var(--surface);
+        }
+
+        .form-header {
+            margin-bottom: 48px;
+        }
+
+        .form-header h1 {
+            font-family: 'Playfair Display', serif;
+            font-size: 38px;
+            font-weight: 400;
+            line-height: 1.15;
+            margin-bottom: 12px;
+        }
+
+        .form-header p {
+            font-size: 14px;
+            color: var(--muted);
+            font-weight: 300;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            font-size: 11px;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: var(--muted);
+            margin-bottom: 8px;
+        }
+
         input {
             width: 100%;
-            padding: 14px 16px;
-            margin-bottom: 16px;
-            border: 2px solid transparent;
-            background-color: #f3f3f3;
-            border-radius: 8px;
-            font-size: 16px;
-            box-sizing: border-box;
-            transition: all 0.2s ease;
+            padding: 14px 18px;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            color: var(--text);
+            font-family: 'DM Sans', sans-serif;
+            font-size: 15px;
+            font-weight: 300;
+            transition: border-color 0.2s;
+            outline: none;
         }
 
         input:focus {
-            outline: none;
-            border-color: #000000;
-            background-color: #ffffff;
+            border-color: var(--gold);
         }
 
-        /* Solid Black Button */
-        button {
-            width: 100%;
-            padding: 16px;
-            background-color: #000000;
-            color: #ffffff;
-            border: none;
-            border-radius: 8px;
-            font-size: 16px;
-            font-weight: 500;
-            cursor: pointer;
-            margin-top: 10px;
+        input::placeholder { color: var(--muted); }
+
+        .error-box {
+            display: none;
+            padding: 12px 16px;
+            background: rgba(192, 57, 43, 0.1);
+            border: 1px solid rgba(192, 57, 43, 0.3);
+            border-radius: 4px;
+            color: #e74c3c;
+            font-size: 13px;
             margin-bottom: 20px;
-            transition: background-color 0.2s;
         }
 
-        button:hover {
-            background-color: #333333;
-        }
-
-        /* Bottom Links */
-        .register-link {
-            text-align: center;
+        .btn-primary {
+            width: 100%;
+            padding: 15px;
+            background: var(--gold);
+            color: #0a0a0a;
+            border: none;
+            border-radius: 4px;
+            font-family: 'DM Sans', sans-serif;
             font-size: 14px;
-        }
-
-        .register-link a {
-            color: #000000;
             font-weight: 500;
-            text-decoration: underline;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            cursor: pointer;
+            margin-top: 8px;
+            transition: background 0.2s, transform 0.1s;
         }
 
-        /* Error Message Styling */
-        #message {
-            font-size: 14px;
-            margin-bottom: 15px;
-            padding: 10px;
-            border-radius: 8px;
+        .btn-primary:hover { background: #dba843; }
+        .btn-primary:active { transform: scale(0.99); }
+
+        .divider {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin: 28px 0;
+        }
+
+        .divider::before, .divider::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: var(--border);
+        }
+
+        .divider span { font-size: 12px; color: var(--muted); }
+
+        .link-row {
             text-align: center;
+            font-size: 13px;
+            color: var(--muted);
+        }
+
+        .link-row a {
+            color: var(--gold);
+            text-decoration: none;
             font-weight: 500;
+        }
+
+        .link-row a:hover { text-decoration: underline; }
+
+        @media (max-width: 768px) {
+            body { grid-template-columns: 1fr; }
+            .panel-left { display: none; }
+            .panel-right { padding: 48px 32px; }
         }
     </style>
 </head>
 <body>
-    
-    <div class="navbar">MusicApp</div>
-    
-    <div class="container">
-        <h2>What's your email and password?</h2>
-        
-        <div id="message" style="display: none;"></div>
-        
+
+    <div class="panel-left">
+        <div class="vinyl"></div>
+        <div class="brand">
+            <div class="brand-name">Sonata</div>
+            <div class="brand-tagline">Music Subscription</div>
+        </div>
+        <div class="panel-left-footer">
+            <blockquote>"Music gives a soul to the universe, wings to the mind."</blockquote>
+            <cite>— Plato</cite>
+        </div>
+    </div>
+
+    <div class="panel-right">
+        <div class="form-header">
+            <h1>Welcome<br><em>back.</em></h1>
+            <p>Sign in to access your curated library.</p>
+        </div>
+
+        <div id="message" class="error-box"></div>
+
         <form id="login-form">
-            <input type="email" id="email" placeholder="Enter email" required>
-            <input type="password" id="password" placeholder="Enter password" required>
-            
-            <button type="submit">Continue</button>
+            <div class="form-group">
+                <label for="email">Email Address</label>
+                <input type="email" id="email" placeholder="you@example.com" required autocomplete="email">
+            </div>
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" placeholder="••••••••" required autocomplete="current-password">
+            </div>
+            <button type="submit" class="btn-primary">Sign In</button>
         </form>
-        
-        <div class="register-link">
-            Don't have an account? <a href="register.html">Register</a>
+
+        <div class="divider"><span>or</span></div>
+
+        <div class="link-row">
+            New to Sonata? <a href="register.html">Create an account</a>
         </div>
     </div>
 

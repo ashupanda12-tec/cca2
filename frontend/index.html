@@ -3,283 +3,594 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Music Dashboard</title>
+    <title>Sonata — Your Library</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
     <style>
-        /* Base Theme */
-        body {
-            margin: 0;
-            padding: 0;
-            background-color: #f4efe6; /* The off-white cream inspired by an internet image */
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            color: #1a1a1a;
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --bg:          #0a0a0a;
+            --surface:     #111111;
+            --surface-2:   #181818;
+            --border:      #252525;
+            --gold:        #c9933a;
+            --gold-light:  #e8b060;
+            --gold-dim:    #7a5520;
+            --text:        #e8e4dc;
+            --text-2:      #a09890;
+            --muted:       #585250;
+            --danger:      #c0392b;
+            --sidebar-w:   260px;
         }
 
-        /* Top Navigation */
-        .navbar {
+        html, body {
+            height: 100%;
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'DM Sans', sans-serif;
+            font-weight: 300;
+        }
+
+        /* ── Layout Shell ── */
+        .shell {
+            display: grid;
+            grid-template-columns: var(--sidebar-w) 1fr;
+            grid-template-rows: 100vh;
+            min-height: 100vh;
+        }
+
+        /* ── Sidebar ── */
+        .sidebar {
+            background: var(--surface);
+            border-right: 1px solid var(--border);
             display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 20px 5%;
+            flex-direction: column;
+            padding: 36px 0;
+            position: sticky;
+            top: 0;
+            height: 100vh;
+            overflow: hidden;
         }
 
-        .navbar-brand {
+        .sidebar-brand {
+            padding: 0 28px 32px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .brand-name {
+            font-family: 'Playfair Display', serif;
             font-size: 24px;
-            font-weight: bold;
+            font-weight: 700;
+            color: var(--gold);
             letter-spacing: -0.5px;
         }
 
-        .user-controls {
-            display: flex;
-            align-items: center;
-            gap: 20px;
-            font-size: 14px;
-            font-weight: 500;
-        }
-
-        #logout-btn {
-            background-color: #dfd8cf;
-            color: #1a1a1a;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 20px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: background 0.2s;
-        }
-
-        #logout-btn:hover {
-            background-color: #d0c8bd;
-        }
-
-        /* Main Container */
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 40px 5%;
-        }
-
-        /* Hero Headline */
-        h1 {
-            font-family: Georgia, "Times New Roman", Times, serif;
-            font-size: 4rem;
-            font-weight: 400;
-            max-width: 600px;
-            margin-top: 20px;
-            margin-bottom: 50px;
-            line-height: 1.1;
-            letter-spacing: -1px;
-        }
-
-        #query-form {
-            display: flex;
-            background-color: #ffffff;
-            border-radius: 100px; /* Fully rounded pill */
-            padding: 8px 8px 8px 32px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
-            align-items: center;
-            margin-bottom: 20px;
-            width: 100%;
-            box-sizing: border-box; /* Ensures padding doesn't push the box off-screen */
-        }
-
-        .search-field {
-            display: flex;
-            flex-direction: column;
-            flex: 1;
-            min-width: 0; /* Prevents text from pushing the box out of shape */
-            border-right: 1px solid #eee;
-            padding-right: 15px;
-            margin-right: 15px;
-        }
-
-        /* Target the last search field to remove the border */
-        .search-field:nth-of-type(4) {
-            border-right: none;
-            margin-right: 5px;
-        }
-
-        .search-field label {
-            font-size: 11px;
-            font-weight: 800;
-            color: #1a1a1a;
-            margin-bottom: 2px;
+        .brand-sub {
+            font-size: 10px;
+            letter-spacing: 3px;
             text-transform: uppercase;
-            letter-spacing: 0.5px;
+            color: var(--muted);
+            margin-top: 2px;
         }
 
-        .search-field input {
-            border: none;
-            outline: none;
-            font-size: 14px;
-            font-weight: 400;
-            background: transparent;
-            color: #717171;
-            padding: 0;
-            width: 100%;
+        .sidebar-user {
+            padding: 24px 28px;
+            border-bottom: 1px solid var(--border);
         }
 
-        /* Placeholder styling for a cleaner look */
-        .search-field input::placeholder {
-            color: #b0b0b0;
+        .user-label {
+            font-size: 10px;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: var(--muted);
+            margin-bottom: 6px;
         }
 
-        .search-btn {
-            background-color: #1a1a1a;
-            color: #ffffff;
-            border: none;
-            border-radius: 50%;
-            width: 48px; /* Slightly smaller to fit better in the pill */
-            height: 48px;
-            cursor: pointer;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            flex-shrink: 0;
-            transition: transform 0.2s;
-        }
-
-        .search-btn:hover {
-            transform: scale(1.05);
-            background-color: #000;
-        }
-
-        .search-btn svg {
-            width: 24px;
-            height: 24px;
-            fill: white;
-        }
-
-        #query-message {
-            margin-left: 20px;
-            font-size: 14px;
-        }
-
-        /* Section Headings */
-        h3 {
-            font-size: 1.8rem;
-            font-family: Georgia, "Times New Roman", Times, serif;
-            font-weight: 400;
-            margin-top: 60px;
-            margin-bottom: 25px;
-            border-bottom: 1px solid #dfd8cf;
-            padding-bottom: 15px;
-        }
-
-        #subscription-list, #query-results {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-            gap: 25px;
-            align-items: start; /* Prevents cards from stretching to match their neighbor's height */
-        }
-
-        .song-card {
-            background-color: #ffffff;
-            border-radius: 20px;
+        .user-name {
+            font-size: 15px;
+            font-weight: 500;
+            color: var(--text);
+            white-space: nowrap;
             overflow: hidden;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.03);
-            display: flex;
-            flex-direction: column;
-            min-height: 420px; /* Forces boxes to maintain shape when empty */
-            transition: transform 0.2s;
+            text-overflow: ellipsis;
         }
 
-        .song-card:hover {
-            transform: translateY(-5px);
-        }
-
-        /* Override the styles for images */
-        .song-card img {
-            width: 100% !important;
-            height: 220px !important;
-            object-fit: cover;
-            margin: 0 !important;
-            display: block;
-            background-color: #e0e0e0; /* Adds a light gray box if the image is missing */
-        }
-
-        .song-card div {
-            padding: 20px;
-            display: flex;
-            flex-direction: column;
+        .sidebar-nav {
             flex: 1;
+            padding: 24px 0;
         }
 
-        .song-card strong {
-            font-size: 1.2rem;
-            margin-bottom: 5px;
+        .nav-section-label {
+            font-size: 10px;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            color: var(--muted);
+            padding: 0 28px 12px;
         }
 
-        .song-card button {
-            margin-top: auto; /* Pushes button to bottom of card */
-            background-color: #ffffff;
-            color: #1a1a1a;
-            border: 2px solid #eaeaea;
-            padding: 12px;
-            border-radius: 30px;
-            font-weight: 600;
+        .nav-link {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 28px;
+            font-size: 14px;
+            color: var(--text-2);
+            cursor: pointer;
+            transition: color 0.15s, background 0.15s;
+            border-left: 2px solid transparent;
+            user-select: none;
+        }
+
+        .nav-link:hover { color: var(--text); background: rgba(255,255,255,0.03); }
+        .nav-link.active { color: var(--gold); border-left-color: var(--gold); background: rgba(201,147,58,0.06); }
+
+        .nav-icon {
+            width: 18px;
+            text-align: center;
+            font-size: 16px;
+            opacity: 0.7;
+        }
+
+        .sidebar-footer {
+            padding: 24px 28px;
+            border-top: 1px solid var(--border);
+        }
+
+        .btn-logout {
+            width: 100%;
+            padding: 11px 16px;
+            background: transparent;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            color: var(--muted);
+            font-family: 'DM Sans', sans-serif;
+            font-size: 13px;
+            letter-spacing: 1px;
+            text-transform: uppercase;
             cursor: pointer;
             transition: all 0.2s;
         }
 
-        .song-card button:hover {
-            border-color: #1a1a1a;
+        .btn-logout:hover {
+            border-color: var(--danger);
+            color: var(--danger);
+        }
+
+        /* ── Main Content ── */
+        .main {
+            overflow-y: auto;
+            background: var(--bg);
+        }
+
+        /* ── Hero Banner ── */
+        .hero {
+            position: relative;
+            padding: 64px 56px 48px;
+            background: linear-gradient(135deg, #110e08 0%, var(--bg) 60%);
+            border-bottom: 1px solid var(--border);
+            overflow: hidden;
+        }
+
+        .hero::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(ellipse 50% 80% at 90% 50%, rgba(201,147,58,0.08) 0%, transparent 70%);
+        }
+
+        .hero-eyebrow {
+            font-size: 11px;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            color: var(--gold-dim);
+            margin-bottom: 16px;
+        }
+
+        .hero-title {
+            font-family: 'Playfair Display', serif;
+            font-size: clamp(36px, 4vw, 56px);
+            font-weight: 400;
+            line-height: 1.1;
+            max-width: 520px;
+            margin-bottom: 32px;
+        }
+
+        .hero-title em { font-style: italic; color: var(--gold-light); }
+
+        /* ── Search Bar ── */
+        .search-bar {
+            display: flex;
+            background: var(--surface-2);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            overflow: hidden;
+            max-width: 800px;
+            transition: border-color 0.2s;
+        }
+
+        .search-bar:focus-within { border-color: var(--gold-dim); }
+
+        .search-field {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            padding: 14px 20px;
+            border-right: 1px solid var(--border);
+            min-width: 0;
+        }
+
+        .search-field:last-of-type { border-right: none; }
+
+        .search-field label {
+            font-size: 9px;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: var(--gold-dim);
+            margin-bottom: 4px;
+            display: block;
+        }
+
+        .search-field input {
+            background: transparent;
+            border: none;
+            outline: none;
+            color: var(--text);
+            font-family: 'DM Sans', sans-serif;
+            font-size: 13px;
+            font-weight: 400;
+            padding: 0;
+            width: 100%;
+        }
+
+        .search-field input::placeholder { color: var(--muted); font-size: 12px; }
+
+        .search-btn {
+            background: var(--gold);
+            border: none;
+            padding: 0 28px;
+            color: #0a0a0a;
+            font-family: 'DM Sans', sans-serif;
+            font-size: 12px;
+            font-weight: 600;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            cursor: pointer;
+            flex-shrink: 0;
+            transition: background 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .search-btn:hover { background: var(--gold-light); }
+
+        .search-btn svg { width: 16px; height: 16px; fill: #0a0a0a; }
+
+        /* ── Content Sections ── */
+        .content {
+            padding: 48px 56px;
+        }
+
+        .section-header {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            margin-bottom: 28px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .section-title {
+            font-family: 'Playfair Display', serif;
+            font-size: 26px;
+            font-weight: 400;
+        }
+
+        .section-count {
+            font-size: 12px;
+            color: var(--muted);
+            letter-spacing: 1px;
+        }
+
+        /* ── Status Message ── */
+        .status-msg {
+            display: none;
+            padding: 14px 20px;
+            border-radius: 6px;
+            font-size: 13px;
+            margin-bottom: 24px;
+        }
+
+        .status-msg.info {
+            background: rgba(201,147,58,0.08);
+            border: 1px solid rgba(201,147,58,0.2);
+            color: var(--gold-light);
+        }
+
+        .status-msg.error {
+            background: rgba(192,57,43,0.08);
+            border: 1px solid rgba(192,57,43,0.25);
+            color: #e74c3c;
+        }
+
+        /* ── Song Grid ── */
+        .song-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+            gap: 20px;
+        }
+
+        /* ── Song Card ── */
+        .song-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            transition: transform 0.2s, border-color 0.2s;
+            animation: cardIn 0.3s ease both;
+        }
+
+        @keyframes cardIn {
+            from { opacity: 0; transform: translateY(12px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+
+        .song-card:hover {
+            transform: translateY(-4px);
+            border-color: var(--gold-dim);
+        }
+
+        .card-img {
+            width: 100%;
+            aspect-ratio: 1;
+            object-fit: cover;
+            background: var(--surface-2);
+            display: block;
+        }
+
+        .card-img.placeholder {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 40px;
+            color: var(--muted);
+        }
+
+        .card-body {
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            gap: 4px;
+        }
+
+        .card-title {
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--text);
+            line-height: 1.3;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .card-artist {
+            font-size: 12px;
+            color: var(--gold-light);
+            font-weight: 400;
+            margin-top: 2px;
+        }
+
+        .card-meta {
+            font-size: 11px;
+            color: var(--muted);
+            margin-top: 2px;
+        }
+
+        .card-btn {
+            margin-top: 14px;
+            padding: 9px 14px;
+            border-radius: 4px;
+            font-family: 'DM Sans', sans-serif;
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: none;
+        }
+
+        .card-btn.subscribe {
+            background: rgba(201,147,58,0.12);
+            color: var(--gold-light);
+            border: 1px solid rgba(201,147,58,0.25);
+        }
+
+        .card-btn.subscribe:hover {
+            background: var(--gold);
+            color: #0a0a0a;
+            border-color: var(--gold);
+        }
+
+        .card-btn.remove {
+            background: transparent;
+            color: var(--muted);
+            border: 1px solid var(--border);
+        }
+
+        .card-btn.remove:hover {
+            background: rgba(192,57,43,0.1);
+            color: #e74c3c;
+            border-color: rgba(192,57,43,0.3);
+        }
+
+        /* ── Empty State ── */
+        .empty-state {
+            padding: 64px 32px;
+            text-align: center;
+            color: var(--muted);
+        }
+
+        .empty-icon { font-size: 48px; margin-bottom: 16px; opacity: 0.4; }
+
+        .empty-state h3 {
+            font-family: 'Playfair Display', serif;
+            font-size: 22px;
+            font-weight: 400;
+            color: var(--text-2);
+            margin-bottom: 8px;
+        }
+
+        .empty-state p { font-size: 13px; line-height: 1.6; }
+
+        /* ── Loading Skeleton ── */
+        .skeleton {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .skeleton-img {
+            width: 100%;
+            aspect-ratio: 1;
+            background: linear-gradient(90deg, var(--surface) 0%, var(--surface-2) 50%, var(--surface) 100%);
+            background-size: 200% 100%;
+            animation: shimmer 1.5s infinite;
+        }
+
+        .skeleton-body { padding: 16px; }
+
+        .skeleton-line {
+            height: 12px;
+            border-radius: 4px;
+            background: linear-gradient(90deg, var(--surface) 0%, var(--surface-2) 50%, var(--surface) 100%);
+            background-size: 200% 100%;
+            animation: shimmer 1.5s infinite;
+            margin-bottom: 8px;
+        }
+
+        .skeleton-line.short { width: 60%; }
+
+        @keyframes shimmer {
+            to { background-position: -200% 0; }
+        }
+
+        /* ── Responsive ── */
+        @media (max-width: 900px) {
+            .shell { grid-template-columns: 1fr; }
+            .sidebar { display: none; }
+            .hero, .content { padding-left: 24px; padding-right: 24px; }
+            .search-bar { flex-direction: column; border-radius: 8px; }
+            .search-field { border-right: none; border-bottom: 1px solid var(--border); }
+            .search-field:last-of-type { border-bottom: none; }
+            .search-btn { padding: 14px; justify-content: center; }
         }
     </style>
 </head>
 <body>
 
-    <div class="navbar">
-        <div class="navbar-brand">MusicApp</div>
-        <div class="user-controls">
-            <span>Welcome! <span id="display-email"></span></span>
-            <button id="logout-btn" onclick="sessionStorage.removeItem('userEmail'); window.location.href='login.html';">Log out</button>
+<div class="shell">
+
+    <!-- ── Sidebar ── -->
+    <aside class="sidebar">
+        <div class="sidebar-brand">
+            <div class="brand-name">Sonata</div>
+            <div class="brand-sub">Music Subscription</div>
         </div>
-    </div>
 
-    <div class="container">
-        
-        <h1>Find your favorite tunes and build your library.</h1>
+        <div class="sidebar-user">
+            <div class="user-label">Signed in as</div>
+            <div class="user-name" id="display-username">—</div>
+        </div>
 
-        <div id="query-area">
+        <nav class="sidebar-nav">
+            <div class="nav-section-label">Navigation</div>
+            <div class="nav-link active" onclick="scrollToSection('search-section')">
+                <span class="nav-icon">🔍</span> Discover
+            </div>
+            <div class="nav-link" onclick="scrollToSection('library-section')">
+                <span class="nav-icon">♪</span> My Library
+            </div>
+        </nav>
+
+        <div class="sidebar-footer">
+            <button class="btn-logout" id="logout-btn">Sign Out</button>
+        </div>
+    </aside>
+
+    <!-- ── Main ── -->
+    <main class="main">
+
+        <!-- Hero + Search -->
+        <section class="hero" id="search-section">
+            <div class="hero-eyebrow">Discover Music</div>
+            <h1 class="hero-title">
+                Find the <em>songs</em><br>that move you.
+            </h1>
+
             <form id="query-form">
-                <div class="search-field">
-                    <label>Title</label>
-                    <input type="text" id="q-title" placeholder="Any title">
+                <div class="search-bar">
+                    <div class="search-field">
+                        <label for="q-title">Title</label>
+                        <input type="text" id="q-title" placeholder="Song title">
+                    </div>
+                    <div class="search-field">
+                        <label for="q-artist">Artist</label>
+                        <input type="text" id="q-artist" placeholder="Artist name">
+                    </div>
+                    <div class="search-field">
+                        <label for="q-year">Year</label>
+                        <input type="text" id="q-year" placeholder="e.g. 1977">
+                    </div>
+                    <div class="search-field">
+                        <label for="q-album">Album</label>
+                        <input type="text" id="q-album" placeholder="Album name">
+                    </div>
+                    <button type="submit" class="search-btn">
+                        <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+                        Search
+                    </button>
                 </div>
-                <div class="search-field">
-                    <label>Artist</label>
-                    <input type="text" id="q-artist" placeholder="Any artist">
-                </div>
-                <div class="search-field">
-                    <label>Year</label>
-                    <input type="text" id="q-year" placeholder="Any year">
-                </div>
-                <div class="search-field">
-                    <label>Album</label>
-                    <input type="text" id="q-album" placeholder="Any album">
-                </div>
-                
-                <button type="submit" class="search-btn">
-                    <svg viewBox="0 0 24 24">
-                        <path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
-                    </svg>
-                </button>
             </form>
-            <div id="query-message" style="color: #d93025; font-weight: 500;"></div>
-            
-            <div id="query-results">
-                </div>
+        </section>
+
+        <!-- Search Results -->
+        <div class="content" id="results-section" style="display:none;">
+            <div class="section-header">
+                <h2 class="section-title">Search Results</h2>
+                <span class="section-count" id="results-count"></span>
+            </div>
+            <div id="query-message" class="status-msg"></div>
+            <div id="query-results" class="song-grid"></div>
         </div>
 
-        <div id="subscription-area">
-            <h3>Your Subscriptions</h3>
-            <div id="subscription-list">
-                </div>
+        <!-- Library -->
+        <div class="content" id="library-section">
+            <div class="section-header">
+                <h2 class="section-title">My Library</h2>
+                <span class="section-count" id="sub-count"></span>
+            </div>
+            <div id="sub-message" class="status-msg"></div>
+            <div id="subscription-list" class="song-grid"></div>
         </div>
 
-    </div>
+    </main>
+</div>
 
-    <script src="config.js"></script>
-    <script src="app.js"></script>
+<script src="config.js"></script>
+<script src="app.js"></script>
+<script>
+    function scrollToSection(id) {
+        document.getElementById(id).scrollIntoView({ behavior: 'smooth' });
+        document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+        event.currentTarget.classList.add('active');
+    }
+</script>
 </body>
 </html>
