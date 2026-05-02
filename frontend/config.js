@@ -3,4 +3,4 @@
 // Deployed EC2 backend:    "http://YOUR_EC2_PUBLIC_IP"
 // Deployed Lambda backend: "https://<API ID>.execute-api.us-east-1.amazonaws.com/prod"
 
-const API_BASE_URL = "http://YOUR_EC2_PUBLIC_IP";
+const API_BASE_URL = "https://0fa1mxk323.execute-api.us-east-1.amazonaws.com/prod";

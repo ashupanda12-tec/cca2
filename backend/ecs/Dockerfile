@@ -1,36 +1,31 @@
 # ─────────────────────────────────────────────────────────────────────────────
-# Dockerfile — Music Subscription App (ECS/Fargate backend)
+# Dockerfile — Music Subscription Service (ECS Fargate)
 #
-# Build:  docker build -t music-backend .
-# Run:    docker run -p 80:80 \
-#           -e AWS_DEFAULT_REGION=us-east-1 \
-#           -e S3_BUCKET=your-bucket-name \
-#           -v ~/.aws:/root/.aws:ro \
-#           music-backend
+# Build:   docker build -t music-svc .
+# Run:     docker run -p 80:80 \
+#            -e AWS_DEFAULT_REGION=us-east-1 \
+#            -e S3_BUCKET=your-bucket \
+#            -v ~/.aws:/root/.aws:ro \
+#            music-svc
 #
-# In production (ECS Fargate) the task role (LabRole) supplies credentials
-# automatically — the ~/.aws mount is only needed for local testing.
+# In production the ECS task role (LabRole) injects credentials automatically.
+# The ~/.aws mount is only needed for local testing via docker run.
 # ─────────────────────────────────────────────────────────────────────────────
 
 FROM python:3.11-slim
 
-# Set working directory
 WORKDIR /app
 
-# Install dependencies first (separate layer → cached unless requirements change)
+# Install dependencies first — this layer is cached unless requirements change
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application source
+# Copy application source after dependencies so code changes don't bust the cache
 COPY . .
 
-# Port 80 — gunicorn binds here directly (no nginx needed in the container;
-# ECS Fargate exposes this port via the task's public IP and security group)
+# gunicorn binds on port 80 directly; no nginx inside the container
 EXPOSE 80
 
-# Run gunicorn on port 80.
-# Fargate tasks run as root inside the container, so binding to port 80 is fine.
-# Workers = 4 is a reasonable default for a t3.micro-equivalent vCPU allocation.
 CMD ["gunicorn", \
      "--workers", "4", \
      "--bind", "0.0.0.0:80", \

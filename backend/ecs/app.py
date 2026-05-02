@@ -1,59 +1,58 @@
 """
-app.py
+server.py  (ECS Fargate entry point)
 
-Entry point for the ECS Flask backend.
+Identical Flask application to the EC2 variant, packaged as a Docker image
+for deployment on Amazon ECS Fargate.
 
-Architecture
-────────────
-This is the same Flask application as the EC2 backend, packaged as a Docker
-container for deployment on Amazon ECS (Fargate).
+Key difference from EC2
+────────────────────────
+On EC2 an nginx process sits in front of gunicorn and listens on port 80.
+Here gunicorn binds directly to 0.0.0.0:80 inside the container — there is
+no nginx layer. ECS assigns a public IP to the Fargate task and the security
+group exposes port 80.
 
-Unlike the EC2 deployment (which uses nginx → gunicorn), here gunicorn binds
-directly to 0.0.0.0:80 inside the container.  There is no nginx needed —
-ECS assigns a public IP to the Fargate task and the security group exposes
-port 80 directly to the internet.
+Module groups:
+  /auth          —  credential routes
+  /music         —  catalogue search
+  /subscriptions —  user library management
+  /health        —  ECS health-check probe
 
-Blueprints:
-  /auth          — login, register, logout
-  /music         — song query
-  /subscriptions — subscribe, remove, list
-  /health        — liveness probe (also used as ECS health check)
+Local run (Python — no Docker required):
+    python app.py
 
-Run locally with Docker Compose:
+Local run with Docker Compose:
     docker compose up
 
-Run on ECS (Fargate):
-    See deploy/setup.sh
+ECS deployment:
+    python deploy/deploy.py
 """
 
 from flask import Flask
 from flask_cors import CORS
 
-import config
-from routes.auth          import auth_bp
-from routes.music         import music_bp
-from routes.subscriptions import subscriptions_bp
+import settings
+from routes.credential_routes  import credential_bp
+from routes.catalogue_routes   import catalogue_bp
+from routes.library_routes     import library_bp
 
-# ── App factory ────────────────────────────────────────────────────────────────
+# ── Application setup ──────────────────────────────────────────────────────────
 app = Flask(__name__)
-app.secret_key = config.SECRET_KEY
+app.secret_key = settings.APP_SECRET
 
-# CORS: allow the frontend (S3 static site or any origin during dev) to call
-# this API.  In production you should restrict origins to your frontend domain.
 CORS(app, supports_credentials=True, origins="*")
 
-# ── Register blueprints ────────────────────────────────────────────────────────
-app.register_blueprint(auth_bp,          url_prefix="/auth")
-app.register_blueprint(music_bp,         url_prefix="/music")
-app.register_blueprint(subscriptions_bp, url_prefix="/subscriptions")
+# ── Blueprints ─────────────────────────────────────────────────────────────────
+app.register_blueprint(credential_bp, url_prefix="/auth")
+app.register_blueprint(catalogue_bp,  url_prefix="/music")
+app.register_blueprint(library_bp,    url_prefix="/subscriptions")
 
 
-# ── Health check ───────────────────────────────────────────────────────────────
+# ── Liveness probe ─────────────────────────────────────────────────────────────
 @app.route("/health")
-def health():
+def liveness():
     return {"status": "ok"}, 200
 
 
-# ── Dev entry point ────────────────────────────────────────────────────────────
+# ── Direct runner ──────────────────────────────────────────────────────────────
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=config.DEBUG)
+    app.run(host="0.0.0.0", port=5000, debug=settings.DEV_MODE)

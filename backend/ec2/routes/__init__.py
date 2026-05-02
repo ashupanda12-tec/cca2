@@ -1,1 +1,1 @@
-# routes package
+# route blueprints package
