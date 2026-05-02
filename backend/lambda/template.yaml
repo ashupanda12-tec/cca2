@@ -1,10 +1,9 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Transform: AWS::Serverless-2016-10-31
 Description: >
-  Music Subscription App — API Gateway + Lambda Backend.
-  Functionally equivalent to the EC2 and ECS backends; only the compute
-  layer differs.  All three implementations share the same DynamoDB tables
-  and S3 bucket.
+  Music Subscription Service — API Gateway + Lambda Backend.
+  Functionally equivalent to the EC2 and ECS backends.
+  All three share the same DynamoDB tables and S3 bucket.
 
 # ── Parameters ─────────────────────────────────────────────────────────────────
 Parameters:
@@ -13,20 +12,17 @@ Parameters:
     Description: >
       ARN of the LabRole IAM role pre-created in AWS Academy.
       Example: arn:aws:iam::123456789012:role/LabRole
-    Default: ""   # Override at deploy time: --parameter-overrides LabRoleArn=...
+    Default: ""
 
 # ── Globals ────────────────────────────────────────────────────────────────────
-# Settings applied to every AWS::Serverless::Function unless overridden.
 Globals:
   Function:
-    Runtime: python3.13
-    Timeout: 30         # seconds — generous for cold-start DynamoDB calls
-    MemorySize: 256     # MB — sufficient for boto3 + our logic
-    CodeUri: .          # package the entire lambda/ directory
+    Runtime: python3.12
+    Timeout: 30
+    MemorySize: 256
+    CodeUri: .
     Environment:
       Variables:
-        # Lambda runtime injects AWS_REGION automatically.
-        # PRESIGNED_URL_EXPIRY can be overridden here if needed.
         PRESIGNED_URL_EXPIRY: "3600"
 
 # ── Resources ──────────────────────────────────────────────────────────────────
@@ -37,37 +33,35 @@ Resources:
     Type: AWS::Serverless::Api
     Properties:
       StageName: prod
-      Description: Music Subscription Application REST API
-      # Enable CORS for OPTIONS preflight requests.
-      # Individual Lambda responses also return CORS headers for safety.
+      Description: Music Subscription Service REST API
       Cors:
         AllowMethods: "'GET,POST,DELETE,OPTIONS'"
         AllowHeaders: "'Content-Type,Authorization'"
         AllowOrigin:  "'*'"
 
-  # ── Auth: Login ──────────────────────────────────────────────────────────────
-  AuthLoginFunction:
+  # ── Credential: Sign In ───────────────────────────────────────────────────────
+  SignInFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: music-app-auth-login
-      Handler: handlers.auth.login_handler
-      Description: Validate user credentials (POST /auth/login)
+      Handler: handlers.credential_handlers.sign_in_handler
+      Description: Authenticate user credentials (POST /auth/login)
       Role: !If [HasLabRole, !Ref LabRoleArn, !Ref AWS::NoValue]
       Events:
-        LoginApi:
+        SignInApi:
           Type: Api
           Properties:
             RestApiId: !Ref MusicApi
             Path: /auth/login
             Method: POST
 
-  # ── Auth: Register ───────────────────────────────────────────────────────────
-  AuthRegisterFunction:
+  # ── Credential: Register ──────────────────────────────────────────────────────
+  RegisterFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: music-app-auth-register
-      Handler: handlers.auth.register_handler
-      Description: Register a new user (POST /auth/register)
+      Handler: handlers.credential_handlers.register_handler
+      Description: Create a new user account (POST /auth/register)
       Role: !If [HasLabRole, !Ref LabRoleArn, !Ref AWS::NoValue]
       Events:
         RegisterApi:
@@ -77,80 +71,80 @@ Resources:
             Path: /auth/register
             Method: POST
 
-  # ── Auth: Logout ─────────────────────────────────────────────────────────────
-  AuthLogoutFunction:
+  # ── Credential: End Session ───────────────────────────────────────────────────
+  EndSessionFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: music-app-auth-logout
-      Handler: handlers.auth.logout_handler
+      Handler: handlers.credential_handlers.end_session_handler
       Description: Stateless logout acknowledgement (POST /auth/logout)
       Role: !If [HasLabRole, !Ref LabRoleArn, !Ref AWS::NoValue]
       Events:
-        LogoutApi:
+        EndSessionApi:
           Type: Api
           Properties:
             RestApiId: !Ref MusicApi
             Path: /auth/logout
             Method: POST
 
-  # ── Music: Query ─────────────────────────────────────────────────────────────
-  MusicQueryFunction:
+  # ── Catalogue: Search ─────────────────────────────────────────────────────────
+  SearchFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: music-app-music-query
-      Handler: handlers.music.query_handler
-      Description: Query music table by title/artist/year/album (GET /music/query)
+      Handler: handlers.catalogue_handlers.search_handler
+      Description: Query catalogue by title/artist/year/album (GET /music/query)
       Role: !If [HasLabRole, !Ref LabRoleArn, !Ref AWS::NoValue]
       Events:
-        MusicQueryApi:
+        SearchApi:
           Type: Api
           Properties:
             RestApiId: !Ref MusicApi
             Path: /music/query
             Method: GET
 
-  # ── Subscriptions: List ───────────────────────────────────────────────────────
-  SubscriptionsListFunction:
+  # ── Library: List ─────────────────────────────────────────────────────────────
+  ListSavedFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: music-app-subscriptions-list
-      Handler: handlers.subscriptions.list_handler
-      Description: List a user's subscriptions (GET /subscriptions)
+      Handler: handlers.library_handlers.list_saved_handler
+      Description: Retrieve user's saved songs (GET /subscriptions)
       Role: !If [HasLabRole, !Ref LabRoleArn, !Ref AWS::NoValue]
       Events:
-        SubscriptionsListApi:
+        ListSavedApi:
           Type: Api
           Properties:
             RestApiId: !Ref MusicApi
             Path: /subscriptions
             Method: GET
 
-  # ── Subscriptions: Subscribe ──────────────────────────────────────────────────
-  SubscriptionsAddFunction:
+  # ── Library: Add ─────────────────────────────────────────────────────────────
+  AddEntryFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: music-app-subscriptions-add
-      Handler: handlers.subscriptions.subscribe_handler
-      Description: Subscribe to a song (POST /subscriptions)
+      Handler: handlers.library_handlers.add_entry_handler
+      Description: Save a song to user's library (POST /subscriptions)
       Role: !If [HasLabRole, !Ref LabRoleArn, !Ref AWS::NoValue]
       Events:
-        SubscriptionsAddApi:
+        AddEntryApi:
           Type: Api
           Properties:
             RestApiId: !Ref MusicApi
             Path: /subscriptions
             Method: POST
 
-  # ── Subscriptions: Unsubscribe ────────────────────────────────────────────────
-  SubscriptionsRemoveFunction:
+  # ── Library: Remove ──────────────────────────────────────────────────────────
+  RemoveEntryFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: music-app-subscriptions-remove
-      Handler: handlers.subscriptions.unsubscribe_handler
-      Description: Remove a subscription (DELETE /subscriptions)
+      Handler: handlers.library_handlers.remove_entry_handler
+      Description: Remove a song from user's library (DELETE /subscriptions)
       Role: !If [HasLabRole, !Ref LabRoleArn, !Ref AWS::NoValue]
       Events:
-        SubscriptionsRemoveApi:
+        RemoveEntryApi:
           Type: Api
           Properties:
             RestApiId: !Ref MusicApi
@@ -159,24 +153,19 @@ Resources:
 
 # ── Conditions ─────────────────────────────────────────────────────────────────
 Conditions:
-  # Only attach LabRoleArn when it has been explicitly provided.
-  # Without this condition the template also works for personal AWS accounts
-  # where SAM can create an execution role automatically.
   HasLabRole: !Not [!Equals [!Ref LabRoleArn, ""]]
 
 # ── Outputs ────────────────────────────────────────────────────────────────────
 Outputs:
   ApiBaseUrl:
-    Description: >
-      Base URL of the deployed API Gateway stage.
-      Use this as the backend URL in your frontend config.
+    Description: Base URL of the deployed API Gateway prod stage
     Value: !Sub "https://${MusicApi}.execute-api.${AWS::Region}.amazonaws.com/prod"
 
-  AuthLoginEndpoint:
+  SignInEndpoint:
     Value: !Sub "https://${MusicApi}.execute-api.${AWS::Region}.amazonaws.com/prod/auth/login"
 
-  MusicQueryEndpoint:
+  SearchEndpoint:
     Value: !Sub "https://${MusicApi}.execute-api.${AWS::Region}.amazonaws.com/prod/music/query"
 
-  SubscriptionsEndpoint:
+  LibraryEndpoint:
     Value: !Sub "https://${MusicApi}.execute-api.${AWS::Region}.amazonaws.com/prod/subscriptions"

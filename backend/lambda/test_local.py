@@ -109,7 +109,7 @@ def run_test(name: str, handler, event: dict, expected_status: int):
 # Update _SEED_EMAIL to match the first seed user created by
 # scripts/create_login_table.py — i.e. <STUDENT_ID>0@student.rmit.edu.au
 
-_SEED_EMAIL    = "s4109620@student.rmit.edu.au"   # update to your seed user email
+_SEED_EMAIL    = "s41096200@student.rmit.edu.au"   # update to your seed user email
 _SEED_PASSWORD = "012345"
 _TEST_EMAIL    = "lambda_test_user@example.com"
 _TEST_USERNAME = "LambdaTestUser"
