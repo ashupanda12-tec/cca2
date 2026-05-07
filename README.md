@@ -1,826 +1,719 @@
-# Cloud Computing A2 — Music Subscription Application
+# Cloud-A2-146 — Sonata Music Subscription App
 
-A cloud-based music subscription web application built on AWS using DynamoDB,
-S3, EC2, API Gateway, and Lambda.
+A cloud-native music subscription web application built on AWS as part of Cloud Computing Assignment 2. The app allows users to register, log in, search songs, and manage a personal subscription library.
 
 ---
 
-## Quick Start — Order of Operations
+## Table of Contents
 
-If you are setting this up from scratch, follow these steps in order:
+1. [Architecture Overview](#architecture-overview)
+2. [Prerequisites](#prerequisites)
+3. [Project Structure](#project-structure)
+4. [Step 1 — AWS Environment Setup](#step-1--aws-environment-setup)
+5. [Step 2 — DynamoDB Tables](#step-2--dynamodb-tables)
+6. [Step 3 — S3 Bucket & Artist Images](#step-3--s3-bucket--artist-images)
+7. [Step 4 — Seed the Database](#step-4--seed-the-database)
+8. [Step 5A — Deploy Backend via AWS Lambda + API Gateway](#step-5a--deploy-backend-via-aws-lambda--api-gateway)
+9. [Step 5B — Deploy Backend via AWS ECS (Fargate)](#step-5b--deploy-backend-via-aws-ecs-fargate)
+10. [Step 6 — Deploy the Frontend](#step-6--deploy-the-frontend)
+11. [Step 7 — Verify the System](#step-7--verify-the-system)
+12. [API Reference](#api-reference)
+13. [Troubleshooting](#troubleshooting)
 
-1. [Install prerequisites](#prerequisites)
-2. [Configure the three personal values](#before-you-start--required-configuration) (S3 bucket name, student ID)
-3. [Set up AWS credentials](#aws-credentials)
-4. [Run the infrastructure scripts](#part-1--aws-infrastructure-setup) (DynamoDB tables + S3 images)
-5. Deploy a backend: [EC2](#part-2--ec2-backend) | [ECS](#part-3--ecs-fargate-backend) | [Lambda](#part-4--api-gateway--lambda-backend)
+---
+
+## Architecture Overview
+
+```
+Browser (Frontend)
+      │
+      ▼
+Amazon S3 (Static Website Hosting)
+      │
+      ▼  REST API calls
+┌─────────────────────────────────────┐
+│  Option A: API Gateway → Lambda     │
+│  Option B: ALB → ECS Fargate        │
+└─────────────────────────────────────┘
+      │
+      ▼
+ DynamoDB Tables          S3 Bucket
+ ┌────────────┐           (Artist Images)
+ │  login     │
+ │  music     │
+ │subscriptions│
+ └────────────┘
+```
+
+- **Frontend** — Static HTML/CSS/JS (Sonata UI) hosted on S3
+- **Backend Option A (Recommended)** — Python Flask deployed as an AWS Lambda function behind API Gateway
+- **Backend Option B** — Python Flask in a Docker container deployed on ECS Fargate
+- **Database** — Amazon DynamoDB (3 tables)
+- **Media Storage** — Amazon S3 (artist images)
+
+---
+
+## Prerequisites
+
+### Local Machine Requirements
+
+| Tool | Version | Purpose |
+|------|---------|---------|
+| Python | 3.10 or higher | Running data setup scripts |
+| pip | Latest | Installing Python packages |
+| AWS CLI | v2 | Interacting with AWS from terminal |
+| Docker | Latest | Required for ECS deployment only |
+| Git | Any | Cloning the repository |
+
+### Install Python dependencies for data setup scripts
+
+```bash
+cd data_setup
+pip install boto3 requests
+```
+
+### AWS Account Requirements
+
+- An active AWS Academy or standard AWS account
+- IAM permissions for: **DynamoDB**, **S3**, **Lambda**, **API Gateway**, **ECS**, **ECR**, **IAM**, **CloudWatch**
+- AWS CLI configured with your credentials (see Step 1)
 
 ---
 
 ## Project Structure
 
 ```
-Cloud_Computing_A2/
-├── data/
-│   ├── 2026a2_songs.json              # Source dataset (137 songs)
-│   └── images/                        # Local artist image cache (auto-created by upload script)
-├── scripts/
-│   ├── create_login_table.py          # Create & populate the login DynamoDB table
-│   ├── create_music_table.py          # Create the music DynamoDB table (GSI + LSI)
-│   ├── create_subscriptions_table.py  # Create the subscriptions DynamoDB table
-│   ├── load_music_data.py             # Load 137 songs into the music table
-│   └── upload_images_to_s3.py         # Upload artist images to S3
-├── backend/
-│   ├── ec2/                           # Flask backend (EC2 deployment)
-│   │   ├── app.py                     # Flask entry point
-│   │   ├── config.py                  # AWS config constants
-│   │   ├── requirements.txt           # Python dependencies
-│   │   ├── setup.sh                   # One-shot EC2 setup script
-│   │   ├── routes/
-│   │   │   ├── auth.py                # POST /auth/login, /register, /logout
-│   │   │   ├── music.py               # GET  /music/query
-│   │   │   └── subscriptions.py       # GET/POST/DELETE /subscriptions
-│   │   └── services/
-│   │       ├── dynamo.py              # All DynamoDB operations
-│   │       └── s3.py                  # S3 pre-signed URL generation
-│   ├── ecs/                           # Flask backend (ECS Fargate deployment)
-│   │   ├── Dockerfile                 # Container image definition
-│   │   ├── docker-compose.yml         # Local testing with real AWS credentials
-│   │   ├── app.py                     # Flask entry point (identical to EC2)
-│   │   ├── config.py                  # AWS config constants
-│   │   ├── requirements.txt           # Python dependencies
-│   │   ├── routes/                    # Same routes as EC2
-│   │   ├── services/                  # Same DynamoDB/S3 services as EC2
-│   │   └── deploy/
-│   │       ├── task-definition.json   # ECS Fargate task definition template
-│   │       └── setup.sh               # Full AWS CLI deployment script
-│   └── lambda/                        # Serverless backend (API Gateway + Lambda)
-│       ├── template.yaml              # AWS SAM template (API GW + Lambda definitions)
-│       ├── config.py                  # Same constants as EC2
-│       ├── requirements.txt           # Python dependencies for packaging
-│       ├── test_local.py              # Direct handler tests (no Docker/SAM needed)
-│       ├── handlers/
-│       │   ├── auth.py                # login_handler, register_handler, logout_handler
-│       │   ├── music.py               # query_handler
-│       │   └── subscriptions.py       # list_handler, subscribe_handler, unsubscribe_handler
-│       └── services/
-│           ├── dynamo.py              # All DynamoDB operations (identical to EC2)
-│           └── s3.py                  # S3 pre-signed URL generation (identical to EC2)
-└── requirements.txt                   # Dependencies for infrastructure scripts
+Cloud-A2-146/
+├── data_setup/                  # One-time setup scripts (run locally)
+│   ├── config.py                # Shared config: region, table names, S3 bucket
+│   ├── create_tables.py         # Creates the 3 DynamoDB tables
+│   ├── seed_login_table.py      # Seeds 10 default login users
+│   ├── load_music_table.py      # Loads all songs into DynamoDB
+│   ├── upload_artist_images.py  # Downloads & uploads artist images to S3
+│   ├── update_music_s3_keys.py  # Writes S3 image keys back to music table
+│   ├── verify_system.py         # End-to-end verification test
+│   └── 2026a2_songs.json        # Song dataset (137 songs)
+│
+├── lambda_backend/
+│   └── lambda_function.py       # ✅ Complete — Lambda handler (all routes)
+│
+├── ecs_backend/                 # ✅ Complete — Dockerised Flask app
+│   ├── app.py
+│   ├── config.py
+│   ├── requirements.txt
+│   └── Dockerfile
+│
+├── backend_flask/               # ⚠️  Incomplete — local EC2 Flask (not for submission)
+│   ├── app.py
+│   ├── config.py
+│   └── requirements.txt
+│
+└── frontend/                    # Static web UI
+    ├── login.html
+    ├── register.html
+    ├── index.html               # Main app page
+    ├── login.js
+    ├── register.js
+    ├── app.js
+    └── config.js                # ← Update API_BASE_URL here
 ```
 
 ---
 
-## Prerequisites
+## Step 1 — AWS Environment Setup
 
-Install the following before starting:
+### 1.1 Configure AWS CLI
 
-- **Python 3.10+** — [python.org](https://www.python.org/downloads/)
-- **AWS SAM CLI** — required for the Lambda backend: [install guide](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/install-sam-cli.html)
-- **Docker Desktop** — required for ECS deployment and for `sam local start-api` (local Lambda simulation): [docker.com](https://www.docker.com/products/docker-desktop/)
-- **Git** — to clone the repo
-
-Then install the Python dependencies for the infrastructure scripts:
-
-```powershell
-pip install -r requirements.txt
+```bash
+aws configure
 ```
+
+Enter the following when prompted:
+
+```
+AWS Access Key ID:     <your key>
+AWS Secret Access Key: <your secret>
+Default region name:   us-east-1
+Default output format: json
+```
+
+> **AWS Academy users:** Copy credentials from the Vocareum "AWS Details" panel. Also export `AWS_SESSION_TOKEN`:
+> ```bash
+> export AWS_SESSION_TOKEN=<your_session_token>
+> ```
+
+### 1.2 Verify CLI access
+
+```bash
+aws sts get-caller-identity
+```
+
+You should see your account ID and ARN. If you get an error, recheck your credentials.
 
 ---
 
-## AWS Credentials
+## Step 2 — DynamoDB Tables
 
-All scripts and backends authenticate with AWS using credentials from
-`~/.aws/credentials`. AWS Academy credentials expire when your lab session
-ends, so you need to refresh them at the start of every session.
+This script creates three tables: `login`, `music`, and `subscriptions`.
 
-**How to set up / refresh credentials:**
-
-1. Open your AWS Academy Lab and start a session
-2. Click **AWS Details** → **AWS CLI**
-3. Click **Copy** on the credentials block
-4. Paste it into `C:\Users\<you>\.aws\credentials` (Windows) or `~/.aws/credentials` (Mac/Linux), replacing the existing content
-
-The file should look like:
-```
-[default]
-aws_access_key_id = ASIA...
-aws_secret_access_key = ...
-aws_session_token = ...
+```bash
+cd data_setup
+python create_tables.py
 ```
 
-> **Important:** These credentials expire after a few hours. If you get
-> `ExpiredTokenException` errors, go back to AWS Academy and refresh them.
+Expected output:
+
+```
+Creating table 'login'...
+Table 'login' is now active.
+
+Creating table 'music'...
+Table 'music' is now active.
+
+Creating table 'subscriptions'...
+Table 'subscriptions' is now active.
+
+All required tables are ready.
+```
+
+> If you see "already exists. Skipping creation." the tables are already there — this is fine.
+
+**Verify in AWS Console:** Go to DynamoDB → Tables and confirm all 3 tables appear with status **Active**.
 
 ---
 
-## Before You Start — Required Configuration
+## Step 3 — S3 Bucket & Artist Images
 
-Three values in the codebase are specific to each developer and **must be
-updated before running any scripts or deploying any backend**.
+### 3.1 Create the S3 Bucket
 
-### 1. S3 bucket name
-
-S3 bucket names must be globally unique across all of AWS. Choose your own
-(e.g. `sXXXXXXX-music-artist-images` using your student number) and update it
-in all three of these files:
-
-| File | What to update |
-|------|----------------|
-| `scripts/upload_images_to_s3.py` | `BUCKET_NAME = "your-bucket-name-here"` |
-| `backend/ec2/config.py` | default value in `os.environ.get("S3_BUCKET", "your-bucket-name-here")` |
-| `backend/lambda/config.py` | default value in `os.environ.get("S3_BUCKET", "your-bucket-name-here")` |
-
-All three must use the **same bucket name**.
-
-> Alternatively, set the `S3_BUCKET` environment variable in your shell and
-> the backends will pick it up automatically without editing the files.
-
-### 2. Login table seed users
-
-`scripts/create_login_table.py` generates 10 seed users based on your student
-details. Open the file and update these three constants before running it:
+The bucket name is already set in `data_setup/config.py`:
 
 ```python
-STUDENT_ID = "sXXXXXXX"   # your RMIT student number, e.g. "s1234567"
-FIRST_NAME = "FirstName"   # your first name
-LAST_NAME  = "LastName"    # your last name
+S3_BUCKET_NAME = "music-app-images-kingston-4156256-2026"
 ```
 
-This produces 10 seed users: `sXXXXXXX0@student.rmit.edu.au` through
-`sXXXXXXX9@student.rmit.edu.au` with passwords `012345` through `901234`.
-Replace `sXXXXXXX0` with your actual first seed email in all test commands.
+Create it via AWS CLI:
 
-### 3. Lambda test script seed email
+```bash
+aws s3api create-bucket \
+  --bucket music-app-images-kingston-4156256-2026 \
+  --region us-east-1
+```
 
-Update the seed email in `backend/lambda/test_local.py` to match:
+### 3.2 Enable Public Access
 
-```python
-_SEED_EMAIL = "sXXXXXXX0@student.rmit.edu.au"  # your first seed user
+```bash
+aws s3api put-public-access-block \
+  --bucket music-app-images-kingston-4156256-2026 \
+  --public-access-block-configuration \
+  "BlockPublicAcls=false,IgnorePublicAcls=false,BlockPublicPolicy=false,RestrictPublicBuckets=false"
+```
+
+### 3.3 Apply a Public Read Bucket Policy
+
+Create a file called `bucket-policy.json`:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "PublicReadImages",
+      "Effect": "Allow",
+      "Principal": "*",
+      "Action": "s3:GetObject",
+      "Resource": "arn:aws:s3:::music-app-images-kingston-4156256-2026/*"
+    }
+  ]
+}
+```
+
+Apply it:
+
+```bash
+aws s3api put-bucket-policy \
+  --bucket music-app-images-kingston-4156256-2026 \
+  --policy file://bucket-policy.json
+```
+
+### 3.4 Upload Artist Images
+
+```bash
+cd data_setup
+python upload_artist_images.py
+```
+
+This downloads each artist's image from the source URLs and uploads them to `s3://music-app-images-kingston-4156256-2026/artists/`.
+
+---
+
+## Step 4 — Seed the Database
+
+Run these scripts **in order**:
+
+### 4.1 Seed login users
+
+```bash
+cd data_setup
+python seed_login_table.py
+```
+
+This inserts 10 test accounts. Credentials follow the pattern:
+
+| Email | Password |
+|-------|----------|
+| s1234567+0@student.rmit.edu.au | 012345 |
+| s1234567+1@student.rmit.edu.au | 123456 |
+| ... | ... |
+| s1234567+9@student.rmit.edu.au | 901234 |
+
+> Update `GROUP_BASE_STUDENT_ID` and `GROUP_BASE_NAME` in `data_setup/config.py` to match your actual student ID before running.
+
+### 4.2 Load the music table
+
+```bash
+python load_music_table.py
+```
+
+Loads all 137 songs from `2026a2_songs.json` into DynamoDB.
+
+### 4.3 Write S3 image keys to music records
+
+```bash
+python update_music_s3_keys.py
+```
+
+This writes the `image_s3_key` field (e.g. `artists/TaylorSwift.jpg`) back to every song record in DynamoDB so the backend can serve full image URLs.
+
+---
+
+## Step 5A — Deploy Backend via AWS Lambda + API Gateway
+
+> ✅ This is the **recommended and complete** deployment path.
+
+### 5.1 Create the Lambda Function
+
+In the AWS Console:
+
+1. Go to **Lambda → Create function**
+2. Choose **Author from scratch**
+3. Settings:
+   - **Function name:** `music-subscription-api`
+   - **Runtime:** Python 3.10
+   - **Architecture:** x86_64
+4. Under **Permissions**, choose or create a role with:
+   - `AmazonDynamoDBFullAccess`
+   - `AmazonS3ReadOnlyAccess`
+   - `AWSLambdaBasicExecutionRole`
+5. Click **Create function**
+
+### 5.2 Upload the Lambda Code
+
+From the Lambda console:
+
+1. Click **Code** tab → **Upload from** → **.zip file**
+2. Create the zip locally first:
+
+```bash
+cd lambda_backend
+zip lambda_function.zip lambda_function.py
+```
+
+3. Upload `lambda_function.zip`
+4. Set **Handler** to: `lambda_function.lambda_handler`
+
+### 5.3 Configure Environment (optional)
+
+The Lambda function uses hardcoded config. No environment variables needed unless you customise the bucket name or table names.
+
+### 5.4 Set Timeout and Memory
+
+In **Configuration → General configuration**:
+- **Timeout:** 30 seconds
+- **Memory:** 256 MB
+
+### 5.5 Create API Gateway
+
+1. Go to **API Gateway → Create API**
+2. Choose **REST API → Build**
+3. Settings:
+   - **API name:** `music-subscription-gateway`
+   - **Endpoint type:** Regional
+4. Click **Create API**
+
+### 5.6 Create Resources and Methods
+
+Create the following routes. For **each route**, the integration type is **Lambda Function** pointing to `music-subscription-api` with **Lambda Proxy integration** enabled.
+
+| Resource | Method |
+|----------|--------|
+| `/login` | POST |
+| `/register` | POST |
+| `/songs` | GET |
+| `/subscriptions` | GET |
+| `/subscriptions` | POST |
+| `/subscriptions` | DELETE |
+
+For each resource, also create an **OPTIONS** method (for CORS):
+- Integration type: **Mock**
+- Method Response: 200
+- Integration Response headers: `Access-Control-Allow-Headers`, `Access-Control-Allow-Methods`, `Access-Control-Allow-Origin` all set to `'*'`
+
+### 5.7 Enable CORS
+
+For each resource, click **Actions → Enable CORS** and confirm. The Lambda function already returns CORS headers so this is a safety net.
+
+### 5.8 Deploy the API
+
+1. Click **Actions → Deploy API**
+2. **Deployment stage:** `prod` (create new)
+3. Click **Deploy**
+
+Copy the **Invoke URL** — it looks like:
+
+```
+https://nsf6ua05d6.execute-api.us-east-1.amazonaws.com/prod
+```
+
+### 5.9 Update the Frontend Config
+
+Open `frontend/config.js` and set:
+
+```javascript
+const API_BASE_URL = "https://<your-api-id>.execute-api.us-east-1.amazonaws.com/prod";
 ```
 
 ---
 
-## Part 1 — AWS Infrastructure Setup
+## Step 5B — Deploy Backend via AWS ECS (Fargate)
 
-Run these five scripts once to provision DynamoDB tables and populate S3.
-**Run them in order from the repo root.**
+> ✅ This is the **alternative complete** deployment path using Docker containers.
 
-### 1. Create the login table
+### 5B.1 Create an ECR Repository
 
-```powershell
-python scripts/create_login_table.py
+```bash
+aws ecr create-repository \
+  --repository-name music-subscription-api \
+  --region us-east-1
 ```
 
-Creates a `login` table with 10 seed users. Partition key: `email`.
+Note the `repositoryUri` from the output, e.g.:
+`123456789012.dkr.ecr.us-east-1.amazonaws.com/music-subscription-api`
 
-### 2. Create the music table
+### 5B.2 Build and Push the Docker Image
 
-```powershell
-python scripts/create_music_table.py
+```bash
+cd ecs_backend
+
+# Authenticate Docker to ECR
+aws ecr get-login-password --region us-east-1 | \
+  docker login --username AWS --password-stdin \
+  123456789012.dkr.ecr.us-east-1.amazonaws.com
+
+# Build the image
+docker build -t music-subscription-api .
+
+# Tag the image
+docker tag music-subscription-api:latest \
+  123456789012.dkr.ecr.us-east-1.amazonaws.com/music-subscription-api:latest
+
+# Push to ECR
+docker push \
+  123456789012.dkr.ecr.us-east-1.amazonaws.com/music-subscription-api:latest
 ```
 
-Creates a `music` table with the following key schema:
+### 5B.3 Create an ECS Cluster
 
-| Key / Index             | Partition Key | Sort Key      |
-|-------------------------|---------------|---------------|
-| Primary key             | `title`       | `artist#year` |
-| GSI: `artist-index`     | `artist`      | `year`        |
-| LSI: `title-year-index` | `title`       | `year`        |
-
-### 3. Create the subscriptions table
-
-```powershell
-python scripts/create_subscriptions_table.py
+```bash
+aws ecs create-cluster --cluster-name music-app-cluster
 ```
 
-Creates a `subscriptions` table. Partition key: `email`, sort key: `song_id`
-(composite value `title#artist#year`).
+### 5B.4 Create a Task Definition
 
-### 4. Load music data
+Create a file `task-def.json`:
 
-```powershell
-python scripts/load_music_data.py
+```json
+{
+  "family": "music-subscription-task",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "256",
+  "memory": "512",
+  "executionRoleArn": "arn:aws:iam::<your-account-id>:role/ecsTaskExecutionRole",
+  "taskRoleArn": "arn:aws:iam::<your-account-id>:role/ecsTaskExecutionRole",
+  "containerDefinitions": [
+    {
+      "name": "music-api",
+      "image": "123456789012.dkr.ecr.us-east-1.amazonaws.com/music-subscription-api:latest",
+      "portMappings": [
+        {
+          "containerPort": 80,
+          "protocol": "tcp"
+        }
+      ],
+      "essential": true,
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/music-subscription",
+          "awslogs-region": "us-east-1",
+          "awslogs-stream-prefix": "ecs"
+        }
+      }
+    }
+  ]
+}
 ```
 
-Loads all 137 songs from `data/2026a2_songs.json` into the `music` table.
-Use `--dry-run` to preview without writing.
+Register the task definition:
 
-### 5. Upload artist images to S3
-
-```powershell
-python scripts/upload_images_to_s3.py
+```bash
+aws ecs register-task-definition --cli-input-json file://task-def.json
 ```
 
-Downloads 71 unique artist images and uploads them to your S3 bucket.
-Use `--dry-run` to preview. The bucket is created automatically if it doesn't
-exist.
+> Make sure `ecsTaskExecutionRole` has `AmazonDynamoDBFullAccess` and `AmazonS3ReadOnlyAccess` attached.
+
+### 5B.5 Create a Security Group
+
+```bash
+aws ec2 create-security-group \
+  --group-name music-api-sg \
+  --description "Music API security group"
+
+# Allow inbound HTTP on port 80
+aws ec2 authorize-security-group-ingress \
+  --group-name music-api-sg \
+  --protocol tcp --port 80 --cidr 0.0.0.0/0
+```
+
+Note the `GroupId` from the output (e.g. `sg-0abc123`).
+
+### 5B.6 Run the ECS Service
+
+```bash
+aws ecs create-service \
+  --cluster music-app-cluster \
+  --service-name music-api-service \
+  --task-definition music-subscription-task \
+  --desired-count 1 \
+  --launch-type FARGATE \
+  --network-configuration "awsvpcConfiguration={subnets=[subnet-xxxxxxxx],securityGroups=[sg-0abc123],assignPublicIp=ENABLED}"
+```
+
+> Replace `subnet-xxxxxxxx` with a public subnet ID from your default VPC. Find it in the EC2 Console → Subnets.
+
+### 5B.7 Get the Public IP
+
+```bash
+# Get the task ARN
+aws ecs list-tasks --cluster music-app-cluster --service-name music-api-service
+
+# Describe the task to get ENI
+aws ecs describe-tasks \
+  --cluster music-app-cluster \
+  --tasks <task-arn>
+```
+
+Look for `networkInterfaceId` in the output, then:
+
+```bash
+aws ec2 describe-network-interfaces \
+  --network-interface-ids <eni-id> \
+  --query 'NetworkInterfaces[0].Association.PublicIp'
+```
+
+Update `frontend/config.js`:
+
+```javascript
+const API_BASE_URL = "http://<ecs-public-ip>";
+```
 
 ---
 
-## Part 2 — EC2 Backend
+## Step 6 — Deploy the Frontend
 
-### Local Development
+### Option A — S3 Static Website Hosting (Recommended)
 
-Test the Flask backend locally against real AWS resources:
-
-```powershell
-cd backend\ec2
-pip install -r requirements.txt
-python app.py
-```
-
-The server starts at `http://localhost:5000`.
-
-**Test endpoints (PowerShell):**
-
-```powershell
-# Health check
-Invoke-RestMethod -Uri "http://localhost:5000/health"
-
-# Login (replace with your seed email)
-Invoke-RestMethod -Method POST -Uri "http://localhost:5000/auth/login" `
-  -ContentType "application/json" `
-  -Body '{"email":"sXXXXXXX0@student.rmit.edu.au","password":"012345"}'
-
-# Register a new user
-Invoke-RestMethod -Method POST -Uri "http://localhost:5000/auth/register" `
-  -ContentType "application/json" `
-  -Body '{"email":"newuser@test.com","user_name":"TestUser","password":"abc123"}'
-
-# Query songs by artist
-Invoke-RestMethod -Uri "http://localhost:5000/music/query?artist=Taylor Swift"
-
-# Query by artist + album (AND logic)
-Invoke-RestMethod -Uri "http://localhost:5000/music/query?artist=Taylor Swift&album=Fearless"
-
-# Subscribe to a song
-Invoke-RestMethod -Method POST -Uri "http://localhost:5000/subscriptions" `
-  -ContentType "application/json" `
-  -Body '{"email":"sXXXXXXX0@student.rmit.edu.au","title":"Love Story","artist":"Taylor Swift","year":"2008","album":"Fearless","image_url":"https://example.com/TaylorSwift.jpg"}'
-
-# List subscriptions
-Invoke-RestMethod -Uri "http://localhost:5000/subscriptions?email=sXXXXXXX0@student.rmit.edu.au"
-
-# Remove a subscription
-Invoke-RestMethod -Method DELETE -Uri "http://localhost:5000/subscriptions" `
-  -ContentType "application/json" `
-  -Body '{"email":"sXXXXXXX0@student.rmit.edu.au","title":"Love Story","artist":"Taylor Swift","year":"2008"}'
-```
-
-**Test endpoints (Linux/macOS):**
+#### 6.1 Create a frontend S3 bucket
 
 ```bash
-# Health check
-curl http://localhost:5000/health
-
-# Login
-curl -X POST http://localhost:5000/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"email":"sXXXXXXX0@student.rmit.edu.au","password":"012345"}'
-
-# Query songs by artist
-curl "http://localhost:5000/music/query?artist=Taylor%20Swift"
-
-# Query by artist + album
-curl "http://localhost:5000/music/query?artist=Taylor%20Swift&album=Fearless"
+aws s3api create-bucket \
+  --bucket sonata-frontend-<your-student-id> \
+  --region us-east-1
 ```
+
+#### 6.2 Enable static website hosting
+
+```bash
+aws s3 website s3://sonata-frontend-<your-student-id>/ \
+  --index-document login.html \
+  --error-document login.html
+```
+
+#### 6.3 Make it public
+
+Apply the same public-read bucket policy as in Step 3.3 (update the bucket name accordingly).
+
+#### 6.4 Upload frontend files
+
+Make sure `frontend/config.js` has the correct `API_BASE_URL` first, then:
+
+```bash
+aws s3 sync frontend/ s3://sonata-frontend-<your-student-id>/
+```
+
+#### 6.5 Access the app
+
+Your app is live at:
+
+```
+http://sonata-frontend-<your-student-id>.s3-website-us-east-1.amazonaws.com/login.html
+```
+
+### Option B — Open Locally
+
+Simply open `frontend/login.html` in a browser. Since `config.js` points to a deployed API URL, this works without any server.
 
 ---
 
-### AWS Deployment (EC2)
+## Step 7 — Verify the System
 
-#### 1. Launch an EC2 instance
-
-| Setting               | Value                          |
-|-----------------------|--------------------------------|
-| AMI                   | Amazon Linux 2023              |
-| Instance type         | t3.micro                       |
-| Key pair              | vockey (AWS Academy default)   |
-| IAM instance profile  | LabInstanceProfile             |
-| Security group        | Allow HTTP (80) and SSH (22)   |
-
-#### 2. Upload the code
-
-```powershell
-scp -i "C:\path\to\labsuser.pem" -r "C:\path\to\Cloud_Computing_A2" ec2-user@<EC2-IP>:~
-```
-
-#### 3. SSH in and run setup
+Run the automated verification script to confirm all components are working:
 
 ```bash
-ssh -i "C:\path\to\labsuser.pem" ec2-user@<EC2-IP>
-
-chmod +x ~/Cloud_Computing_A2/backend/ec2/setup.sh
-sudo ~/Cloud_Computing_A2/backend/ec2/setup.sh
+cd data_setup
+python verify_system.py
 ```
 
-The setup script installs Python 3.11, gunicorn, and nginx, creates a systemd
-service, and starts everything. nginx listens on port 80 and reverse-proxies
-to gunicorn on port 5000.
+Expected output:
 
-#### 4. Set the S3 bucket environment variable
+```
+--- TEST 1: LOGIN ---
+Login user found: GroupUser0
 
-The backend reads the bucket name from the `S3_BUCKET` environment variable.
-Set it in the systemd service so it persists across restarts:
+--- TEST 2: MUSIC QUERY (Artist) ---
+Found 7 songs for Taylor Swift
+- Bad Blood (2014)
+- Delicate (2017)
+- ...
 
-```bash
-sudo sed -i '/\[Service\]/a Environment="S3_BUCKET=your-bucket-name-here"' \
-  /etc/systemd/system/flask-backend.service
+--- TEST 3: ADD SUBSCRIPTION ---
+Subscribed to: 1904
 
-sudo systemctl daemon-reload
-sudo systemctl restart flask-backend
+--- TEST 4: VIEW SUBSCRIPTIONS ---
+Total subscriptions: 1
+- 1904 (The Tallest Man on Earth)
+
+--- TEST 5: REMOVE SUBSCRIPTION ---
+Removed: 1904
+
+--- TEST 4: VIEW SUBSCRIPTIONS ---
+Total subscriptions: 0
 ```
 
-Replace `your-bucket-name-here` with the same bucket name you used in the
-configuration step.
-
-#### 5. Fix log file permissions (first time only)
-
-```bash
-sudo touch /var/log/flask-backend-access.log /var/log/flask-backend-error.log
-sudo chown ec2-user:ec2-user /var/log/flask-backend-access.log /var/log/flask-backend-error.log
-sudo systemctl restart flask-backend
-```
-
-#### 6. Fix nginx default server conflict (first time only)
-
-```bash
-sudo sed -i '/^    server {/,/^    }/d' /etc/nginx/nginx.conf
-sudo nginx -t && sudo systemctl reload nginx
-```
-
-#### 7. Verify
-
-```bash
-curl http://localhost/health
-# Expected: {"status":"ok"}
-```
-
-Then from your PC:
-```powershell
-Invoke-RestMethod -Method POST -Uri "http://<EC2-IP>/auth/login" `
-  -ContentType "application/json" `
-  -Body '{"email":"sXXXXXXX0@student.rmit.edu.au","password":"012345"}'
-```
-
-#### Useful commands on the EC2 instance
-
-```bash
-# Check service status
-sudo systemctl status flask-backend
-
-# View live logs
-sudo journalctl -u flask-backend -f
-
-# Restart after a code change
-sudo systemctl restart flask-backend
-```
+All 5 tests passing means your DynamoDB tables and credentials are fully operational.
 
 ---
 
 ## API Reference
 
-### Auth
+Base URL: `https://<api-id>.execute-api.us-east-1.amazonaws.com/prod`
 
-| Method | Endpoint         | Description                    |
-|--------|------------------|--------------------------------|
-| POST   | /auth/login      | Validate email + password      |
-| POST   | /auth/register   | Register a new user            |
-| POST   | /auth/logout     | Acknowledge logout (stateless) |
+### POST `/login`
 
-### Music
+```json
+{ "email": "s1234567+0@student.rmit.edu.au", "password": "012345" }
+```
 
-| Method | Endpoint      | Description                                      |
-|--------|---------------|--------------------------------------------------|
-| GET    | /music/query  | Query songs by title, artist, year, album (AND)  |
-
-### Subscriptions
-
-| Method | Endpoint       | Description                        |
-|--------|----------------|------------------------------------|
-| GET    | /subscriptions | List a user's subscribed songs     |
-| POST   | /subscriptions | Subscribe to a song                |
-| DELETE | /subscriptions | Remove a subscription              |
+**Success 200:** `{ "success": true, "user_name": "GroupUser0", "email": "..." }`
+**Failure 401:** `{ "success": false, "message": "email or password is invalid" }`
 
 ---
 
-## DynamoDB Key Schema — Design Rationale
+### POST `/register`
 
-The `music` table uses `title` as the partition key and `artist#year` as a
-composite sort key. Song titles alone are not unique (e.g. "Bad Blood" appears
-for multiple artists), and even `(title, artist)` is not fully unique — e.g.
-"Delicate" by Taylor Swift appears across two album editions in different years.
-Only `(title, artist, year)` is unique across all 137 songs, so the sort key
-encodes both as `"artist#year"` (e.g. `"Taylor Swift#2017"`).
+```json
+{ "email": "newuser@example.com", "user_name": "Alice", "password": "secret" }
+```
 
-The **GSI** (`artist-index`) supports the most common query pattern: finding
-all songs by a given artist, optionally filtered by year.
-
-The **LSI** (`title-year-index`) supports range queries over year within a
-given title partition, useful when searching by title and year together.
-
-The **subscriptions** table uses `email` as the partition key and a composite
-`song_id` (`title#artist#year`) as the sort key. This lets a single Query
-fetch all of a user's subscriptions, and a single DeleteItem remove one by
-its exact key — no scans required.
+**Success 201:** `{ "success": true, "message": "registration successful" }`
+**Conflict 409:** `{ "success": false, "message": "The email already exists" }`
 
 ---
 
-## Part 3 — ECS Fargate Backend
+### GET `/songs`
 
-The ECS backend runs the **same Flask application** as EC2, packaged as a Docker
-container and managed by Amazon ECS (Fargate). Instead of nginx → gunicorn on a
-persistent VM, gunicorn binds directly to port 80 inside the container and ECS
-manages container scheduling, health checks, and restarts automatically.
+Query parameters (at least one required): `title`, `artist`, `year`, `album`
 
-> **AWS Academy — Important IP note:** ECS Fargate tasks are assigned a **new
-> public IP every time the task restarts** (e.g. after a lab session ends and
-> restarts). Before every demo session, re-run `python deploy/deploy.py` to get
-> the current IP and update `frontend/config.js` accordingly. The script skips
-> all existing resources and only takes ~30 seconds on subsequent runs.
+```
+GET /songs?artist=Taylor+Swift
+GET /songs?title=Hotel+California&year=1977
+```
+
+**Success 200:** `{ "success": true, "songs": [ { "title": "...", "artist": "...", "image_url": "..." }, ... ] }`
 
 ---
 
-### Local Testing (Python — no Docker needed)
+### GET `/subscriptions?email=<email>`
 
-Because the ECS backend is the same Flask application as EC2, you can run and
-test it directly with Python. This validates all application logic — DynamoDB
-queries, S3 presigned URLs, subscriptions — against the real AWS services,
-without needing Docker at all.
-
-**Prerequisites:** Active AWS Academy credentials in `~/.aws/credentials`.
-
-```powershell
-cd backend\ecs
-pip install -r requirements.txt
-python app.py
-```
-
-The server starts on `http://localhost:5000`. Test all endpoints in a second terminal:
-
-```powershell
-# Health check
-Invoke-RestMethod -Uri "http://localhost:5000/health"
-
-# Login (replace with your actual seed email)
-Invoke-RestMethod -Method POST -Uri "http://localhost:5000/auth/login" `
-  -ContentType "application/json" `
-  -Body '{"email":"sXXXXXXX0@student.rmit.edu.au","password":"012345"}'
-
-# Query by artist
-Invoke-RestMethod -Uri "http://localhost:5000/music/query?artist=Taylor Swift"
-
-# Query by artist + album (AND logic)
-Invoke-RestMethod -Uri "http://localhost:5000/music/query?artist=Taylor Swift&album=Fearless"
-
-# Subscribe to a song
-Invoke-RestMethod -Method POST -Uri "http://localhost:5000/subscriptions" `
-  -ContentType "application/json" `
-  -Body '{"email":"sXXXXXXX0@student.rmit.edu.au","title":"Love Story","artist":"Taylor Swift","year":"2008","album":"Fearless","image_url":"https://raw.githubusercontent.com/YingZhang2015/cc/main/TaylorSwift.jpg"}'
-
-# List subscriptions
-Invoke-RestMethod -Uri "http://localhost:5000/subscriptions?email=sXXXXXXX0@student.rmit.edu.au"
-
-# Remove a subscription
-Invoke-RestMethod -Method DELETE -Uri "http://localhost:5000/subscriptions" `
-  -ContentType "application/json" `
-  -Body '{"email":"sXXXXXXX0@student.rmit.edu.au","title":"Love Story","artist":"Taylor Swift","year":"2008"}'
-```
-
-> **Note:** AWS credentials are required even for local testing because all data
-> lives in AWS (DynamoDB tables and S3 bucket). The Flask server runs locally
-> but every request reaches out to real AWS services.
+Returns all subscriptions for a user.
 
 ---
 
-### AWS Deployment (ECS Fargate)
+### POST `/subscriptions`
 
-**Prerequisites:**
-- **Docker Desktop** installed and running (green "Engine running" status)
-- Active AWS Academy credentials in `~/.aws/credentials`
-- No AWS CLI required — the deploy script uses Python + boto3
-
-#### 1. Refresh AWS credentials
-
-Go to AWS Academy → start your lab → **AWS Details** → **AWS CLI** → **Copy**,
-then paste the block into `C:\Users\<you>\.aws\credentials`. (This step is skippable if you have already configured your AWS credentials.)
-
-#### 2. Run the Python deploy script
-
-```powershell
-cd "C:\path\to\Cloud_Computing_A2\backend\ecs"
-python deploy/deploy.py
-```
-
-The script runs 10 steps automatically (skipping anything that already exists):
-
-| Step | What it does |
-|---|---|
-| 1 | Resolves your AWS account ID |
-| 2 | Creates an ECR repository (`music-backend`) |
-| 3 | Authenticates Docker to ECR |
-| 4 | Builds the Docker image and pushes it to ECR |
-| 5 | Creates a CloudWatch log group (`/ecs/music-backend`) |
-| 6 | Creates a security group allowing inbound HTTP on port 80 |
-| 7 | Registers the ECS task definition with LabRole |
-| 8 | Creates the ECS cluster (`music-app-cluster`) |
-| 8b | Creates the ECS service-linked role (required in AWS Academy accounts) |
-| 9 | Creates the Fargate service with a public IP |
-| 10 | Waits for the task to reach RUNNING and prints the public IP |
-
-When complete, the script prints:
-
-```
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- Deployment complete!
- Public IP   : <YOUR_IP>
- Health check: http://<YOUR_IP>/health
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-```
-
-#### 3. Test all endpoints against the live ECS task
-
-```powershell
-$ECS = "http://<YOUR_ECS_IP>"
-
-# Health check
-Invoke-RestMethod -Uri "$ECS/health"
-
-# Login
-Invoke-RestMethod -Method POST -Uri "$ECS/auth/login" `
-  -ContentType "application/json" `
-  -Body '{"email":"sXXXXXXX0@student.rmit.edu.au","password":"012345"}'
-
-# Query by artist
-Invoke-RestMethod -Uri "$ECS/music/query?artist=Taylor Swift"
-
-# Query by artist + album (AND logic)
-Invoke-RestMethod -Uri "$ECS/music/query?artist=Taylor Swift&album=Fearless"
-
-# Subscribe
-Invoke-RestMethod -Method POST -Uri "$ECS/subscriptions" `
-  -ContentType "application/json" `
-  -Body '{"email":"sXXXXXXX0@student.rmit.edu.au","title":"Love Story","artist":"Taylor Swift","year":"2008","album":"Fearless","image_url":"https://raw.githubusercontent.com/YingZhang2015/cc/main/TaylorSwift.jpg"}'
-
-# List subscriptions
-Invoke-RestMethod -Uri "$ECS/subscriptions?email=sXXXXXXX0@student.rmit.edu.au"
-
-# Remove subscription
-Invoke-RestMethod -Method DELETE -Uri "$ECS/subscriptions" `
-  -ContentType "application/json" `
-  -Body '{"email":"sXXXXXXX0@student.rmit.edu.au","title":"Love Story","artist":"Taylor Swift","year":"2008"}'
-```
-
-#### 4. Point the frontend at ECS
-
-Update `frontend/config.js` to use the ECS IP:
-
-```js
-const API_BASE_URL = "http://<YOUR_ECS_IP>";
-```
-
-#### 5. Subsequent deploys (after code changes or lab restart)
-
-```powershell
-python deploy/deploy.py
-```
-
-The script is idempotent — it skips any resources that already exist and only
-rebuilds and pushes the Docker image if needed, then updates the running service.
-
-#### Useful links after deployment
-
-| Resource | Where to find it |
-|---|---|
-| Running tasks | ECS Console → Clusters → `music-app-cluster` → Services → `music-backend-service` → Tasks |
-| Container logs | CloudWatch → Log groups → `/ecs/music-backend` |
-| Current public IP | ECS task → Network → Public IP (changes on each lab restart) |
-
----
-
-## Part 4 — API Gateway + Lambda Backend
-
-The Lambda backend is **functionally identical** to the EC2 backend — same
-endpoints, same DynamoDB tables, same S3 bucket. Only the compute layer
-differs: Flask + gunicorn is replaced by Lambda handlers, and nginx + EC2 is
-replaced by API Gateway.
-
----
-
-### Prerequisites
-
-- [AWS SAM CLI](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/install-sam-cli.html) installed
-- Active AWS credentials (`~/.aws/credentials` refreshed from AWS Academy — see [AWS Credentials](#aws-credentials))
-- Python 3.13 installed and on your PATH
-
-> **Note on Python version:** The SAM template uses `Runtime: python3.13`. If
-> your machine has a different Python version, either update the `Runtime` field
-> in `template.yaml` → `Globals.Function` to match your version, or run
-> `sam build --use-container` to build inside Docker instead (no local Python
-> version requirement).
-
----
-
-### Local Testing — Option A: Direct handler invocation (no Docker needed)
-
-The fastest way to validate all Lambda logic. Calls the handler functions
-directly with mock API Gateway events against the real DynamoDB tables and S3
-bucket — no SAM CLI or Docker required, only active AWS credentials.
-
-> Make sure you've updated `_SEED_EMAIL` in `test_local.py` to your own seed
-> user email before running (see [Required Configuration](#before-you-start--required-configuration)).
-
-```powershell
-cd backend\lambda
-pip install -r requirements.txt
-python test_local.py
-```
-
-Prints a ✓/✗ summary for ~15 test cases covering login, register, query,
-subscribe, unsubscribe, and error paths.
-
----
-
-### Local Testing — Option B: SAM local API server (full API Gateway simulation)
-
-Starts a local HTTP server on port 3000 that behaves exactly like API Gateway,
-running each Lambda function inside a Docker container.
-
-**Additional prerequisite:** Docker Desktop running.
-
-```powershell
-cd backend\lambda
-sam build
-sam local start-api
-```
-
-Then test with PowerShell against `http://localhost:3000`:
-
-```powershell
-# Login (replace with your seed email)
-Invoke-RestMethod -Method POST `
-  -Uri "http://localhost:3000/auth/login" `
-  -ContentType "application/json" `
-  -Body '{"email":"sXXXXXXX0@student.rmit.edu.au","password":"012345"}'
-
-# Query by artist
-Invoke-RestMethod -Uri "http://localhost:3000/music/query?artist=Taylor Swift"
-
-# Query by artist + album (AND logic)
-Invoke-RestMethod -Uri "http://localhost:3000/music/query?artist=Taylor Swift&album=Fearless"
-
-# Subscribe
-Invoke-RestMethod -Method POST `
-  -Uri "http://localhost:3000/subscriptions" `
-  -ContentType "application/json" `
-  -Body '{"email":"sXXXXXXX0@student.rmit.edu.au","title":"Love Story","artist":"Taylor Swift","year":"2008","album":"Fearless","image_url":"https://example.com/TaylorSwift.jpg"}'
-
-# List subscriptions
-Invoke-RestMethod -Uri "http://localhost:3000/subscriptions?email=sXXXXXXX0@student.rmit.edu.au"
-
-# Unsubscribe
-Invoke-RestMethod -Method DELETE `
-  -Uri "http://localhost:3000/subscriptions" `
-  -ContentType "application/json" `
-  -Body '{"email":"sXXXXXXX0@student.rmit.edu.au","title":"Love Story","artist":"Taylor Swift","year":"2008"}'
+```json
+{
+  "email": "user@example.com",
+  "title": "Ho Hey",
+  "artist": "The Lumineers",
+  "year": "2012",
+  "album": "The Lumineers",
+  "image_s3_key": "artists/TheLumineers.jpg"
+}
 ```
 
 ---
 
-### AWS Deployment
+### DELETE `/subscriptions`
 
-#### 1. Get your LabRole ARN
-
-In the AWS Console go to **IAM → Roles → LabRole** and copy the ARN. It follows
-the format:
+```json
+{ "email": "user@example.com", "music_id": "The Lumineers#Ho Hey#2012#The Lumineers" }
 ```
-arn:aws:iam::<YOUR_ACCOUNT_ID>:role/LabRole
-```
-
-Your account ID is visible on the IAM Roles page next to the LabRole entry.
-
-#### 2. Build
-
-```powershell
-cd backend\lambda
-sam build
-```
-
-#### 3. Deploy (first time — interactive)
-
-```powershell
-sam deploy --guided --parameter-overrides LabRoleArn=arn:aws:iam::<YOUR_ACCOUNT_ID>:role/LabRole
-```
-
-Answer the prompts as follows:
-
-| Prompt | Answer |
-|--------|--------|
-| Stack Name | `music-app-lambda` |
-| AWS Region | `us-east-1` |
-| Parameter LabRoleArn | *(your LabRole ARN)* |
-| Confirm changes before deploy | `y` |
-| Allow SAM CLI IAM role creation | `n` |
-| Disable rollback | `n` |
-| `*Function` may not have authorization defined... | `y` (×7) |
-| Capabilities | *(press Enter to accept default `CAPABILITY_IAM`)* |
-| Save arguments to samconfig.toml | `y` |
-| SAM configuration file | `samconfig.toml` |
-| SAM configuration environment | `default` |
-
-SAM will display a changeset preview and ask `Deploy this changeset? [y/N]` —
-type `y`. Deployment takes ~1–2 minutes.
-
-#### 4. Get your API URL
-
-After deployment the Outputs table is printed to the terminal:
-
-```
-Key    ApiBaseUrl
-Value  https://<YOUR_API_ID>.execute-api.us-east-1.amazonaws.com/prod
-```
-
-Copy the `ApiBaseUrl` value — this is your live API base URL. Use it as the
-backend URL in your frontend config.
-
-#### 5. Verify
-
-```powershell
-# Set your base URL once
-$API = "https://<YOUR_API_ID>.execute-api.us-east-1.amazonaws.com/prod"
-
-# Login
-Invoke-RestMethod -Method POST `
-  -Uri "$API/auth/login" `
-  -ContentType "application/json" `
-  -Body '{"email":"sXXXXXXX0@student.rmit.edu.au","password":"012345"}'
-
-# Query by artist
-Invoke-RestMethod -Uri "$API/music/query?artist=Taylor Swift"
-
-# Subscribe
-Invoke-RestMethod -Method POST `
-  -Uri "$API/subscriptions" `
-  -ContentType "application/json" `
-  -Body '{"email":"sXXXXXXX0@student.rmit.edu.au","title":"Love Story","artist":"Taylor Swift","year":"2008","album":"Fearless","image_url":"https://example.com/TaylorSwift.jpg"}'
-
-# List subscriptions
-Invoke-RestMethod -Uri "$API/subscriptions?email=sXXXXXXX0@student.rmit.edu.au"
-
-# Unsubscribe
-Invoke-RestMethod -Method DELETE `
-  -Uri "$API/subscriptions" `
-  -ContentType "application/json" `
-  -Body '{"email":"sXXXXXXX0@student.rmit.edu.au","title":"Love Story","artist":"Taylor Swift","year":"2008"}'
-```
-
-#### 6. Subsequent deploys (after code changes)
-
-```powershell
-sam build && sam deploy
-```
-
-No prompts — uses the saved `samconfig.toml` from the first deploy.
 
 ---
 
-### Tear Down
+## Troubleshooting
 
-```powershell
-sam delete --stack-name music-app-lambda
-```
+### `botocore.exceptions.NoCredentialsError`
+Your AWS credentials are not configured. Re-run `aws configure` or re-export your session token if using AWS Academy.
 
-Removes the API Gateway, all 7 Lambda functions, and the CloudFormation stack.
-DynamoDB tables and the S3 bucket are **not** deleted (shared with EC2/ECS).
+### `ResourceNotFoundException` when running setup scripts
+The DynamoDB tables don't exist yet. Run `python create_tables.py` first.
+
+### Images not loading in the frontend
+- Confirm `upload_artist_images.py` ran successfully
+- Confirm `update_music_s3_keys.py` ran after that
+- Verify the S3 bucket policy allows public reads (Step 3.3)
+
+### API Gateway returns `{"message": "Internal Server Error"}`
+- Open **CloudWatch → Log groups → /aws/lambda/music-subscription-api** to see the Python traceback
+- Common cause: Lambda execution role is missing DynamoDB permissions
+
+### ECS container keeps restarting
+- Check CloudWatch Logs at `/ecs/music-subscription`
+- Verify the task role has DynamoDB and S3 permissions
+- Confirm the security group allows inbound TCP on port 80
+
+### CORS errors in the browser console
+- Confirm OPTIONS method exists for each API Gateway resource
+- Confirm CORS was enabled (Actions → Enable CORS) and the API was **redeployed** after making changes
 
 ---
 
-### Lambda API Reference
+## Notes
 
-| Method | Path              | Lambda Handler                                        |
-|--------|-------------------|-------------------------------------------------------|
-| POST   | /auth/login       | `handlers.auth.login_handler`                         |
-| POST   | /auth/register    | `handlers.auth.register_handler`                      |
-| POST   | /auth/logout      | `handlers.auth.logout_handler`                        |
-| GET    | /music/query      | `handlers.music.query_handler`                        |
-| GET    | /subscriptions    | `handlers.subscriptions.list_handler`                 |
-| POST   | /subscriptions    | `handlers.subscriptions.subscribe_handler`            |
-| DELETE | /subscriptions    | `handlers.subscriptions.unsubscribe_handler`          |
-
----
-
-## AWS Resources
-
-| Resource              | Name                                       |
-|-----------------------|--------------------------------------------|
-| DynamoDB table        | `login`                                    |
-| DynamoDB table        | `music`                                    |
-| DynamoDB table        | `subscriptions`                            |
-| S3 bucket             | your bucket name (see configuration above) |
-| EC2 instance          | Amazon Linux 2023, t3.micro                |
-| ECR repository        | `music-backend`                            |
-| ECS cluster           | `music-app-cluster`                        |
-| ECS service           | `music-backend-service` (Fargate)          |
-| API Gateway REST API  | `MusicApi` (via SAM stack)                 |
-| Lambda functions (×7) | `music-app-auth-*`, `music-app-music-*`, `music-app-subscriptions-*` |
+- EC2 backend (`backend_flask/`) is **incomplete** and not used in this submission
+- Lambda and ECS backends are functionally identical — both use the same DynamoDB tables and S3 bucket
+- The `music_id` composite key format is: `{artist}#{title}#{year}#{album}`
+- AWS Academy sessions expire after a few hours — re-export credentials and restart any Lambda/ECS deployments if things stop working

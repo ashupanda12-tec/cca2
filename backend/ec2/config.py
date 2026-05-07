@@ -25,7 +25,7 @@ TITLE_LSI  = "title-year-index"   # title  (PK) + year (SK)
 # Set the S3_BUCKET environment variable to your own bucket name, or update
 # the default value below.  The bucket must exist and contain the artist images
 # uploaded by scripts/upload_images_to_s3.py.
-S3_BUCKET            = os.environ.get("S3_BUCKET", "testbuck2003-ashup-2026")
+S3_BUCKET            = os.environ.get("S3_BUCKET", "myassignment2bucket-ashup")
 PRESIGNED_URL_EXPIRY = int(os.environ.get("PRESIGNED_URL_EXPIRY", 3600))  # seconds
 
 # ── Flask ──────────────────────────────────────────────────────────────────────
